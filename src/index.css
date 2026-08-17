@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+@config '../tailwind.config.js';
+
+body {
+  background-color: #f5f5f5;
+  color: #2e2e2e;
+  font-family: 'Roboto', system-ui, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* thin scrollbars for horizontal scroll rows */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
