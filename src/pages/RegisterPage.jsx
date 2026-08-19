@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('customer')
+  const [whatsapp, setWhatsapp] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -17,7 +18,9 @@ export default function RegisterPage() {
     setError('')
     setBusy(true)
     try {
-      const user = await register({ name: name.trim(), email: email.trim(), password, role })
+      const payload = { name: name.trim(), email: email.trim(), password, role }
+      if (role === 'vendor' && whatsapp.trim()) payload.whatsapp = whatsapp.trim()
+      const user = await register(payload)
       navigate(user.role === 'vendor' ? '/vendor' : '/', { replace: true })
     } catch (err) {
       setError(err.message)
@@ -103,6 +106,19 @@ export default function RegisterPage() {
               ))}
             </div>
           </div>
+
+          {role === 'vendor' && (
+            <label className="block">
+              <span className="text-xs font-bold text-secondary mb-1 block">WhatsApp Number (for order notifications)</span>
+              <input
+                type="tel"
+                value={whatsapp}
+                onChange={(e) => setWhatsapp(e.target.value)}
+                placeholder="e.g. 0803 123 4567"
+                className="w-full border border-gray-300 rounded text-sm px-3 py-2.5 outline-none focus:border-primary"
+              />
+            </label>
+          )}
 
           <button
             type="submit"

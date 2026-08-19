@@ -5,6 +5,7 @@ const tabs = [
   { to: '/vendor/products', label: 'Products' },
   { to: '/vendor/add-product', label: 'Add Product' },
   { to: '/vendor/orders', label: 'Orders' },
+  { to: '/vendor/settings', label: 'Settings' },
 ]
 
 export default function VendorLayout() {

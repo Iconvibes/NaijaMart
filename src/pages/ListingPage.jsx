@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { categories, products as catalogProducts, getCategoryBySlug, formatNaira } from '../data/catalog'
 import { useAsync } from '../hooks/useAsync'
 import { productSource } from '../productSource'
 import ProductCard from '../components/ProductCard'
+import { ProductCardSkeleton } from '../components/Skeleton'
 import { ChevronDownIcon } from '../components/Icons'
 
 const aspects = ['aspect-[4/5]', 'aspect-[5/6]', 'aspect-[4/5]', 'aspect-[1/1]', 'aspect-[5/6]', 'aspect-[4/5]', 'aspect-[1/1]', 'aspect-[4/5]']
@@ -28,6 +29,8 @@ const discountOf = (p) =>
 
 export default function ListingPage({ mode = 'category' }) {
   const { slug } = useParams()
+  const [searchParams] = useSearchParams()
+  const searchQuery = searchParams.get('q') || ''
 
   const [sort, setSort] = useState('featured')
   const [minPrice, setMinPrice] = useState('')
@@ -40,12 +43,21 @@ export default function ListingPage({ mode = 'category' }) {
   const category = mode === 'category' ? getCategoryBySlug(slug) : null
 
   const base = useMemo(() => {
+    if (searchQuery) {
+      const term = searchQuery.toLowerCase()
+      return all.filter((p) =>
+        (p.name || '').toLowerCase().includes(term) ||
+        (p.description || '').toLowerCase().includes(term) ||
+        (p.category || '').toLowerCase().includes(term)
+      )
+    }
     if (mode === 'deals') return all.filter((p) => p.oldPrice)
     if (mode === 'category') return category ? all.filter((p) => p.category === category.name) : []
     return all
-  }, [mode, category, all])
+  }, [mode, category, all, searchQuery])
 
   const title =
+    searchQuery ? `Search: "${searchQuery}"` :
     mode === 'deals' ? 'Deals of the Day' : mode === 'all' ? 'All Products' : category ? category.name : 'Category'
 
   const hasFilters = minPrice !== '' || maxPrice !== ''
@@ -183,43 +195,53 @@ export default function ListingPage({ mode = 'category' }) {
 
           {/* results */}
           <div className="flex-1 p-3">
-            {hasFilters && (
-              <div className="flex items-center gap-2 mb-3 flex-wrap text-[11px]">
-                <span className="text-gray-500">Filters:</span>
-                {minPrice !== '' && (
-                  <span className="bg-background border border-gray-200 rounded px-2 py-1 font-medium text-secondary">
-                    Min {formatNaira(minNum)}
-                  </span>
-                )}
-                {maxPrice !== '' && (
-                  <span className="bg-background border border-gray-200 rounded px-2 py-1 font-medium text-secondary">
-                    Max {formatNaira(maxNum)}
-                  </span>
-                )}
-                <button onClick={resetFilters} className="text-primary font-bold hover:underline">
-                  Clear all
-                </button>
-              </div>
-            )}
-
-            {filtered.length === 0 ? (
-              <div className="py-16 text-center">
-                <p className="text-4xl mb-2">🔍</p>
-                <p className="font-bold text-secondary mb-1">No products match your filters</p>
-                <p className="text-xs text-gray-500 mb-4">Try widening your price range.</p>
-                <button
-                  onClick={resetFilters}
-                  className="bg-primary text-white text-sm font-bold rounded px-5 py-2.5 hover:bg-primary/90 transition-colors"
-                >
-                  Clear Filters
-                </button>
-              </div>
-            ) : (
+            {loading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
-                {filtered.map((p, i) => (
-                  <ProductCard key={p.id} product={{ ...p, linkTo: `/product/${p.id}` }} aspectClass={aspects[i % aspects.length]} />
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <ProductCardSkeleton key={i} />
                 ))}
               </div>
+            ) : (
+              <>
+                {hasFilters && (
+                  <div className="flex items-center gap-2 mb-3 flex-wrap text-[11px]">
+                    <span className="text-gray-500">Filters:</span>
+                    {minPrice !== '' && (
+                      <span className="bg-background border border-gray-200 rounded px-2 py-1 font-medium text-secondary">
+                        Min {formatNaira(minNum)}
+                      </span>
+                    )}
+                    {maxPrice !== '' && (
+                      <span className="bg-background border border-gray-200 rounded px-2 py-1 font-medium text-secondary">
+                        Max {formatNaira(maxNum)}
+                      </span>
+                    )}
+                    <button onClick={resetFilters} className="text-primary font-bold hover:underline">
+                      Clear all
+                    </button>
+                  </div>
+                )}
+
+                {filtered.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <p className="text-4xl mb-2">🔍</p>
+                    <p className="font-bold text-secondary mb-1">No products match your filters</p>
+                    <p className="text-xs text-gray-500 mb-4">Try widening your price range.</p>
+                    <button
+                      onClick={resetFilters}
+                      className="bg-primary text-white text-sm font-bold rounded px-5 py-2.5 hover:bg-primary/90 transition-colors"
+                    >
+                      Clear Filters
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3">
+                    {filtered.map((p, i) => (
+                      <ProductCard key={p.id} product={{ ...p, linkTo: `/product/${p.id}` }} aspectClass={aspects[i % aspects.length]} />
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

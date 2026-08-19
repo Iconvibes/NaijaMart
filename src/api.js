@@ -24,11 +24,13 @@ export const api = {
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
   me: () => request('/auth/me'),
+  updateMe: (payload) => request('/auth/me', { method: 'PATCH', body: payload }),
   users: () => request('/auth/users'),
-  products: () => request('/products'),
+  products: (q) => request(`/products${q ? `?q=${encodeURIComponent(q)}` : ''}`),
   product: (id) => request(`/products/${id}`),
   vendors: () => request('/vendors'),
   createProduct: (payload) => request('/products', { method: 'POST', body: payload }),
+  updateProduct: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
   uploadImages: (files) => {
     const formData = new FormData()
@@ -36,6 +38,7 @@ export const api = {
     return request('/upload', { method: 'POST', formData })
   },
   createOrder: (payload) => request('/orders', { method: 'POST', body: payload }),
+  lookupOrder: (id, phone) => request(`/orders/lookup/${encodeURIComponent(id)}?phone=${encodeURIComponent(phone)}`),
   orders: () => request('/orders'),
   updateOrderStatus: (id, status) => request(`/orders/${id}/status`, { method: 'PATCH', body: { status } }),
   capturePayment: (id) => request(`/orders/${id}/payment`, { method: 'PATCH', body: { action: 'capture' } }),

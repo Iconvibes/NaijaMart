@@ -16,6 +16,7 @@ const toUserObj = (u) => ({
   passwordHash: u.passwordHash,
   role: u.role,
   logo: u.logo || null,
+  whatsapp: u.whatsapp || null,
   createdAt: u.createdAt,
 })
 
@@ -111,6 +112,17 @@ export const repo = {
     return docs.map((d) => toUserObj({ ...d.toObject(), id: d._id }))
   },
 
+  async updateUser(id, data) {
+    if (isMemoryDb()) {
+      const u = mem.users.find((x) => String(x.id) === String(id))
+      if (!u) return null
+      Object.assign(u, data)
+      return toUserObj(u)
+    }
+    const doc = await User.findByIdAndUpdate(id, data, { new: true })
+    return doc ? toUserObj({ ...doc.toObject(), id: doc._id }) : null
+  },
+
   async findAllUsers() {
     if (isMemoryDb()) return mem.users.map(toUserObj)
     const docs = await User.find().sort({ createdAt: 1 })
@@ -135,13 +147,32 @@ export const repo = {
     return toUserObj({ ...doc.toObject(), id: doc._id })
   },
 
-  async findProducts({ vendorId } = {}) {
+  async findProducts({ vendorId, q } = {}) {
     if (isMemoryDb()) {
       let list = mem.products
       if (vendorId) list = list.filter((p) => String(p.vendorId) === String(vendorId))
+      if (q) {
+        const term = String(q).toLowerCase()
+        list = list.filter((p) =>
+          (p.name || '').toLowerCase().includes(term) ||
+          (p.description || '').toLowerCase().includes(term) ||
+          (p.category || '').toLowerCase().includes(term)
+        )
+      }
       return list.map(toProductObj)
     }
-    const query = vendorId ? { vendorId } : {}
+    const query = {}
+    if (vendorId) query.vendorId = vendorId
+    if (q) {
+      const term = String(q).trim()
+      if (term) {
+        query.$or = [
+          { name: { $regex: term, $options: 'i' } },
+          { description: { $regex: term, $options: 'i' } },
+          { category: { $regex: term, $options: 'i' } },
+        ]
+      }
+    }
     const docs = await Product.find(query).sort({ _id: 1 })
     return docs.map((d) => toProductObj({ ...d.toObject(), id: d._id }))
   },

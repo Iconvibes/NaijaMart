@@ -111,6 +111,13 @@ export const TrashIcon = (props) => (
   </svg>
 )
 
+export const EditIcon = (props) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
+    <path d="M15.2 5.8l3 3L9.4 17.6H6.4v-3z" />
+    <path d="M13.4 7.6l3 3" />
+  </svg>
+)
+
 export const CloseIcon = (props) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
     <line x1="6" y1="6" x2="18" y2="18" />
@@ -121,6 +128,22 @@ export const CloseIcon = (props) => (
 export const CheckIcon = (props) => (
   <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
     <path d="M4 12.5l5 5L20 6.5" />
+  </svg>
+)
+
+export const ClockIcon = (props) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 3" />
+  </svg>
+)
+
+export const PackageIcon = (props) => (
+  <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke} {...props}>
+    <path d="M16.5 9.4l-9-5.2" />
+    <path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+    <path d="M3.27 6.96L12 12.01l8.73-5.05" />
+    <path d="M12 22.08V12" />
   </svg>
 )
 

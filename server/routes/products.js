@@ -21,9 +21,9 @@ async function withVendor(list) {
   })
 }
 
-// GET /api/products - public; optional ?vendorId= filter
+// GET /api/products - public; optional ?vendorId= and ?q= (search) filters
 router.get('/', async (req, res) => {
-  const list = await repo.findProducts({ vendorId: req.query.vendorId })
+  const list = await repo.findProducts({ vendorId: req.query.vendorId, q: req.query.q })
   res.json(await withVendor(list))
 })
 

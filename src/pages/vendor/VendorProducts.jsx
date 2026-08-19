@@ -5,7 +5,7 @@ import { productSource } from '../../productSource'
 import { useAuth } from '../../context/useAuth'
 import { useAsync } from '../../hooks/useAsync'
 import { formatNaira } from '../../data/catalog'
-import { TrashIcon } from '../../components/Icons'
+import { EditIcon, TrashIcon } from '../../components/Icons'
 
 export default function VendorProducts() {
   const { user } = useAuth()
@@ -104,13 +104,22 @@ export default function VendorProducts() {
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <button
-                      onClick={() => handleDelete(p.id, p.name)}
-                      className="p-1.5 text-gray-400 hover:text-danger"
-                      aria-label={`Delete ${p.name}`}
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Link
+                        to={`/vendor/edit-product/${p.id}`}
+                        className="p-1.5 text-gray-400 hover:text-primary"
+                        aria-label={`Edit ${p.name}`}
+                      >
+                        <EditIcon className="w-4 h-4" />
+                      </Link>
+                      <button
+                        onClick={() => handleDelete(p.id, p.name)}
+                        className="p-1.5 text-gray-400 hover:text-danger"
+                        aria-label={`Delete ${p.name}`}
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

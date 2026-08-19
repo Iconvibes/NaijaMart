@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['admin', 'vendor', 'customer'], default: 'customer' },
     // vendors only - real logo image under /images/vendors/
     logo: { type: String, default: null },
+    // vendors only - WhatsApp number for order notifications
+    whatsapp: { type: String, default: null },
   },
   { timestamps: true }
 )

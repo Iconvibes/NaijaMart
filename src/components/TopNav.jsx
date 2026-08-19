@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { categoryOptions, categories, slugify } from '../data/catalog'
 import { useCart } from '../context/useCart'
 import { useAuth } from '../context/useAuth'
@@ -25,6 +25,7 @@ export default function TopNav() {
   const { cartCount, openCart } = useCart()
   const { user, logout } = useAuth()
   const [category, setCategory] = useState(categoryOptions[0])
+  const [query, setQuery] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const navigate = useNavigate()
 
@@ -32,8 +33,12 @@ export default function TopNav() {
 
   const handleSearch = (e) => {
     e.preventDefault()
-    if (category === 'All Categories') return
-    navigate(`/category/${slugify(category)}`)
+    const q = query.trim()
+    if (q) {
+      navigate(`/shop?q=${encodeURIComponent(q)}`)
+    } else if (category !== 'All Categories') {
+      navigate(`/category/${slugify(category)}`)
+    }
   }
 
   return (
@@ -41,9 +46,9 @@ export default function TopNav() {
       {/* slim top strip */}
       <div className="hidden md:block bg-secondary text-white/90 text-xs">
         <div className="max-w-7xl mx-auto px-4 h-8 flex items-center gap-6">
-          <a href="#" className="hover:text-primary flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5" /> 0700 000 0000</a>
-          <a href="#" className="hover:text-primary">Track Your Order</a>
-          <a href="#" className="hover:text-primary">Help Center</a>
+          <a href="tel:07000000000" className="hover:text-primary flex items-center gap-1.5"><PhoneIcon className="w-3.5 h-3.5" /> 0700 000 0000</a>
+          <Link to="/track-order" className="hover:text-primary">Track Your Order</Link>
+          <Link to="/shop" className="hover:text-primary">Help Center</Link>
           <span className="ml-auto flex items-center gap-1.5"><ShieldIcon className="w-3.5 h-3.5 text-accent" /> 100% Buyer Protection</span>
           <span className="flex items-center gap-1.5"><TruckIcon className="w-3.5 h-3.5 text-accent" /> Free delivery on ₦50,000+</span>
         </div>
@@ -79,6 +84,8 @@ export default function TopNav() {
           </select>
           <input
             type="search"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
             placeholder="Search products, brands and categories"
             className="flex-1 px-3 py-2.5 text-sm outline-none min-w-0"
             aria-label="Search products"
@@ -101,6 +108,7 @@ export default function TopNav() {
               ) : (
                 <span className="text-sm font-semibold text-secondary">Hello, {user.name.split(' ')[0]}</span>
               )}
+              <Link to="/account" className="text-xs font-semibold text-secondary hover:text-primary">Account</Link>
               <button
                 onClick={() => {
                   logout()
@@ -171,6 +179,7 @@ export default function TopNav() {
           <div className="pt-1 space-y-1">
             {user ? (
               <>
+                <Link to="/account" className="block py-2 border-b border-gray-100">My Account</Link>
                 {dashboardFor && (
                   <Link to={dashboardFor} className="block py-2 border-b border-gray-100">
                     Seller Dashboard

@@ -3,11 +3,50 @@ import { repo } from '../store.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
 import { placeOrder } from '../services/orderIntake.js'
 import { recordPaymentCapture, refundOrderLines } from '../services/money.js'
+import { notifyVendors } from '../services/whatsapp.js'
 import { canSetFulfillment, FULFILLMENT, toVendorOrderView, WAREHOUSE_ADDRESS } from '../services/vendorOrderView.js'
 
 const router = Router()
 
 const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
+
+// GET /api/orders/lookup/:id - public order tracking. Verifies the phone
+// number matches so random browsing can't enumerate orders.
+router.get('/lookup/:id', async (req, res) => {
+  const order = await repo.findOrderById(req.params.id)
+  if (!order) return res.status(404).json({ message: 'Order not found' })
+
+  const phone = (req.query.phone || '').trim().replace(/[^0-9+]/g, '')
+  if (!phone) return res.status(400).json({ message: 'Phone number is required' })
+
+  const orderPhone = (order.customerPhone || '').trim().replace(/[^0-9+]/g, '')
+  if (orderPhone !== phone) {
+    return res.status(404).json({ message: 'Order not found' })
+  }
+
+  // Return a stripped view — no vendor breakdown, just customer-facing info
+  res.json({
+    order: {
+      id: order.id,
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      items: order.items.map((i) => ({
+        name: i.name,
+        image: i.image,
+        price: i.price,
+        qty: i.qty,
+        fulfillment: i.fulfillment,
+        refunded: i.refunded,
+      })),
+      total: order.total,
+      status: order.status,
+      payment: { method: order.payment?.method, status: order.payment?.status },
+      deliveredAt: order.deliveredAt,
+      createdAt: order.createdAt,
+    },
+  })
+})
 
 // POST /api/orders - guest checkout from the cart. Thin adapter: validation,
 // server-side price/vendor snapshotting and totals all live in the placeOrder
@@ -19,6 +58,10 @@ router.post('/', async (req, res) => {
   if (order.payment?.status === 'captured') {
     await recordPaymentCapture(order)
   }
+  // Notify vendors via WhatsApp (fire-and-forget — don't block the response)
+  notifyVendors(order, repo).catch((err) =>
+    console.error('WhatsApp notification error:', err.message)
+  )
   res.status(201).json({ order })
 })
 
