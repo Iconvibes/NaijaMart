@@ -34,7 +34,11 @@ export const publicUser = (u) => ({
   name: u.name,
   email: u.email,
   role: u.role,
+  vendorStatus: u.vendorStatus || 'approved',
   logo: u.logo,
+  banner: u.banner || null,
+  bio: u.bio || '',
   whatsapp: u.whatsapp,
+  slug: u.slug || null,
   createdAt: u.createdAt,
 })

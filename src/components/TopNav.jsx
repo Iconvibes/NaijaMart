@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { categoryOptions, categories, slugify } from '../data/catalog'
 import { useCart } from '../context/useCart'
 import { useAuth } from '../context/useAuth'
-import { CartIcon, MenuIcon, SearchIcon, ChevronDownIcon, TruckIcon, PhoneIcon, ShieldIcon } from './Icons'
+import { useAsync } from '../hooks/useAsync'
+import { api } from '../api'
+import { CartIcon, MenuIcon, SearchIcon, ChevronDownIcon, TruckIcon, PhoneIcon, ShieldIcon, BellIcon } from './Icons'
 
 const Logo = () => (
   <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="NaijaMart home">
@@ -20,6 +22,24 @@ const desktopNavLinks = [
   ...categories.map((c) => ({ label: c.name, to: `/category/${c.slug}` })),
   { label: 'Deals of the Day', to: '/deals' },
 ]
+
+function NotificationBell() {
+  const { data } = useAsync(
+    useCallback(() => api.notificationCount(), [])
+  )
+  const count = data?.count || 0
+
+  return (
+    <Link to="/notifications" className="relative text-secondary hover:text-primary" aria-label="Notifications">
+      <BellIcon className="w-6 h-6" />
+      {count > 0 && (
+        <span className="absolute -top-2 -right-2 bg-danger text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] grid place-items-center px-1">
+          {count > 99 ? '99+' : count}
+        </span>
+      )}
+    </Link>
+  )
+}
 
 export default function TopNav() {
   const { cartCount, openCart } = useCart()
@@ -100,6 +120,7 @@ export default function TopNav() {
         <div className="hidden lg:flex items-center gap-4 shrink-0">
           {user ? (
             <div className="flex items-center gap-3">
+              <NotificationBell />
               {dashboardFor ? (
                 <Link to={dashboardFor} className="flex items-center gap-2 text-sm font-semibold text-secondary hover:text-primary whitespace-nowrap">
                   {user.logo && <img src={user.logo} alt="" className="w-6 h-6 rounded-full" />}
@@ -143,7 +164,12 @@ export default function TopNav() {
         </div>
 
         {/* mobile cart */}
-        <button onClick={openCart} className="lg:hidden ml-auto relative text-secondary" aria-label="Cart">
+        {user && (
+          <Link to="/notifications" className="lg:hidden relative text-secondary" aria-label="Notifications">
+            <BellIcon className="w-6 h-6" />
+          </Link>
+        )}
+        <button onClick={openCart} className="lg:hidden relative text-secondary" aria-label="Cart">
           <CartIcon className="w-6 h-6" />
           {cartCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-danger text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] grid place-items-center px-1">

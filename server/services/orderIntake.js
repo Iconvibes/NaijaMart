@@ -10,7 +10,62 @@ import { ValidationError } from '../lib/errors.js'
 // is the payment processor's seam); cod stays pending until the courier remits.
 const PAYMENT_METHODS = ['card', 'transfer', 'cod']
 
-export async function placeOrder({ customerName, customerPhone, customerAddress, items, paymentMethod } = {}) {
+// Atomically validate and reserve a coupon. Returns the discount amount or
+// throws a ValidationError. Uses a compare-and-swap loop so two concurrent
+// checkouts can never overspend a coupon's maxUses.
+async function validateAndReserveCoupon(couponCode, subtotal) {
+  const coupon = await repo.findCouponByCode(couponCode)
+  if (!coupon) throw new ValidationError('Invalid coupon code')
+  if (!coupon.active) throw new ValidationError('This coupon is no longer active')
+  if (coupon.expiresAt && new Date(coupon.expiresAt) < new Date()) {
+    throw new ValidationError('This coupon has expired')
+  }
+  if (coupon.minOrder && subtotal < coupon.minOrder) {
+    throw new ValidationError(`Minimum order for this coupon is ₦${coupon.minOrder.toLocaleString()}`)
+  }
+
+  // Atomic reserve: loop until we either succeed or hit the limit.
+  // This prevents two concurrent orders from both seeing usedCount=99
+  // (with maxUses=100), both pass validation, and both increment past the limit.
+  let current = coupon
+  if (coupon.maxUses) {
+    let reserved = false
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (current.usedCount >= coupon.maxUses) {
+        throw new ValidationError('This coupon has reached its usage limit')
+      }
+      // Try to atomically increment — if another request beat us, the
+      // returned doc will have a higher usedCount and we loop again.
+      const updated = await repo.incrementCouponUsageAtomic(current.id, current.usedCount)
+      if (updated) {
+        current = updated
+        reserved = true
+        break
+      }
+      // CAS failed — someone else incremented first, re-read
+      current = await repo.findCouponByCode(couponCode)
+      if (!current) throw new ValidationError('Coupon no longer exists')
+    }
+    if (!reserved) {
+      throw new ValidationError('Coupon reservation failed — please try again')
+    }
+  } else {
+    // Unlimited coupon — just increment
+    await repo.incrementCouponUsage(current.id)
+  }
+
+  // Calculate discount
+  let discount = 0
+  if (coupon.discountType === 'percent') {
+    discount = Math.round(subtotal * coupon.discountValue / 100)
+  } else {
+    discount = Math.min(coupon.discountValue, subtotal)
+  }
+
+  return { coupon, discount }
+}
+
+export async function placeOrder({ customerName, customerPhone, customerAddress, items, paymentMethod, couponCode } = {}) {
   if (!customerName || !customerPhone || !customerAddress) {
     throw new ValidationError('Name, phone and address are required')
   }
@@ -34,12 +89,20 @@ export async function placeOrder({ customerName, customerPhone, customerAddress,
       image: product.image,
       price: product.price,
       qty,
-      // No seller has dispatched anything yet.
       fulfillment: 'pending',
     })
   }
 
-  const total = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+  let total = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0)
+  let discountAmount = 0
+
+  // Validate and atomically reserve coupon
+  if (couponCode) {
+    const result = await validateAndReserveCoupon(couponCode, total)
+    discountAmount = result.discount
+  }
+
+  const finalTotal = Math.max(0, total - discountAmount)
   const captured = method !== 'cod'
 
   return repo.createOrder({
@@ -47,12 +110,14 @@ export async function placeOrder({ customerName, customerPhone, customerAddress,
     customerPhone: String(customerPhone).trim(),
     customerAddress: String(customerAddress).trim(),
     items: lineItems,
-    total,
+    total: finalTotal,
+    couponCode: couponCode || null,
+    discountAmount,
     status: 'pending',
     payment: {
       method,
       status: captured ? 'captured' : 'pending',
-      amount: total,
+      amount: finalTotal,
       capturedAt: captured ? new Date().toISOString() : null,
     },
   })

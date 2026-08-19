@@ -18,7 +18,7 @@ export default function VendorProducts() {
       []
     )
   )
-  const products = (data || []).filter((p) => p.vendorId === user.id)
+  const products = (data?.products || data || []).filter((p) => p.vendorId === user.id)
   // local errors from deletes; load errors come from the hook
   const [deleteError, setDeleteError] = useState('')
 

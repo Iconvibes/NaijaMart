@@ -4,6 +4,8 @@ import { requireAuth, requireRole } from '../middleware/auth.js'
 import { placeOrder } from '../services/orderIntake.js'
 import { recordPaymentCapture, refundOrderLines } from '../services/money.js'
 import { notifyVendors } from '../services/whatsapp.js'
+import { notifyUser } from '../services/realtime.js'
+import { sendOrderConfirmation, sendShippingUpdate } from '../services/email.js'
 import { canSetFulfillment, FULFILLMENT, toVendorOrderView, WAREHOUSE_ADDRESS } from '../services/vendorOrderView.js'
 
 const router = Router()
@@ -58,10 +60,21 @@ router.post('/', async (req, res) => {
   if (order.payment?.status === 'captured') {
     await recordPaymentCapture(order)
   }
-  // Notify vendors via WhatsApp (fire-and-forget — don't block the response)
+  // Notify vendors via WhatsApp + realtime (fire-and-forget)
   notifyVendors(order, repo).catch((err) =>
     console.error('WhatsApp notification error:', err.message)
   )
+  // Notify each vendor in the order via Socket.io
+  const vendorIds = [...new Set(order.items.map((i) => String(i.vendorId)))]
+  for (const vid of vendorIds) {
+    notifyUser(vid, {
+      type: 'new_order',
+      message: `New order! #${String(order.id).slice(-8).toUpperCase()} — ${order.items.length} item(s), total ${order.total.toLocaleString()}`,
+      link: '/vendor/orders',
+    }).catch(() => {})
+  }
+  // Send order confirmation email (fire-and-forget)
+  sendOrderConfirmation(order).catch(() => {})
   res.status(201).json({ order })
 })
 
@@ -98,6 +111,13 @@ router.patch('/:id/status', requireAuth, requireRole('admin'), async (req, res) 
   if (!order) return res.status(404).json({ message: 'Order not found' })
 
   const updated = await repo.updateOrderStatus(req.params.id, status)
+  // Notify customer of status change (fire-and-forget)
+  notifyUser(updated.items[0]?.vendorId, {
+    type: 'order_status',
+    message: `Order #${String(updated.id).slice(-8).toUpperCase()} status updated to ${status}`,
+    link: '/vendor/orders',
+  }).catch(() => {})
+  sendShippingUpdate(updated, status).catch(() => {})
   res.json({ order: updated })
 })
 

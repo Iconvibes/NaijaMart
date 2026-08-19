@@ -40,7 +40,7 @@ export default function AdminDashboard() {
     useCallback(() => Promise.all([api.users(), api.products(), api.orders(), api.ledger(), api.ledgerPayables()]), [])
   )
   const users = data?.[0]?.users || []
-  const products = data?.[1] || []
+  const products = data?.[1]?.products || data?.[1] || []
   const orders = data?.[2]?.orders || []
   const ledgerEntries = data?.[3]?.entries || []
   const payables = data?.[4]?.payables || []

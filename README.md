@@ -1,176 +1,99 @@
-# NaijaMart
+<div align="center">
 
-A full-stack multi-vendor e-commerce marketplace built for Nigeria. Vendors list products, customers browse and buy, and the platform handles orders, payments, and vendor payouts.
+# 🛒 NaijaMart
 
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
-![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss)
-![Express](https://img.shields.io/badge/Express-5-000000?logo=express)
-![MongoDB](https://img.shields.io/badge/MongoDB-9-47A248?logo=mongodb)
+**Multi-Vendor Marketplace with Escrow, Real-time Notifications & AI**
+
+A full-stack e-commerce platform built for Nigeria. Vendors list products, customers buy with confidence — their money sits in escrow until delivery is confirmed and the return window passes.
+
+![React](https://img.shields.io/badge/React_19-61DAFB?style=for-the-badge&logo=react&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![MongoDB](https://img.shields.io/badge/MongoDB-47A248?style=for-the-badge&logo=mongodb&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socket.io&logoColor=white)
+
+[Quick Start](#quick-start) · [Features](#features) · [Architecture](#architecture) · [Tech Stack](#tech-stack) · [Docs](#documentation)
+
+</div>
+
+---
+
+## What This Project Does
+
+NaijaMart solves a real problem: **Nigerian vendors need a safe way to get paid.** Buyers pay the platform, not the vendor. Money is held in escrow while the order is fulfilled. Sellers only get paid after delivery + a 7-day return window. If something goes wrong, refunds reverse from escrow — the platform never loses money.
+
+This isn't a CRUD tutorial. It's a working marketplace with **real financial logic**, real-time notifications, and the kind of resilience engineering that separates junior projects from production systems.
 
 ---
 
 ## Features
 
-### Customer
-- Browse products by category, search, and flash deals
-- Product detail pages with images, ratings, and vendor info
-- Cart with persistent drawer and checkout flow
-- Order tracking with real-time status updates
-- Account dashboard for profile and order history
-- PWA install banner — installable on Android and iOS
+| Customer | Vendor | Admin |
+|----------|--------|-------|
+| Browse, search, filter products | Product management with image upload | Vendor approval/rejection |
+| Cart + checkout with coupon codes | AI product assistant (OpenAI) | Withdrawal request management |
+| Real-time order tracking | Wallet & withdrawal requests | Analytics dashboard (GMV, revenue) |
+| Wishlist & follow stores | Revenue analytics (Recharts) | Product moderation |
+| Verified purchase reviews | Public storefront page | Full refund & clawback system |
+| PWA — installable on mobile | WhatsApp order notifications | Ledger & payout controls |
 
-### Vendor (Seller Center)
-- Dashboard to manage products (add, edit, delete) with image upload
-- Order management with fulfillment workflow (pending → sent → received)
-- Vendor settings — update store name, logo, and WhatsApp number
-- WhatsApp order notifications via Meta Cloud API (falls back to `wa.me` links in dev)
-
-### Admin
-- Admin dashboard to oversee all orders and users
-- Platform-wide order and ledger management
-
-### Platform
-- Role-based access control (customer, vendor, admin)
-- Rate limiting on authentication endpoints
-- In-memory rate limiter (swap for Redis in production)
-- Service worker with offline caching and push notification support
-- Skeleton loading states and error boundaries
-- 12 static/info pages (About, FAQ, Shipping, Returns, Terms, Privacy, etc.)
+**Platform-level:** Multi-vendor escrow · Double-entry ledger · Socket.io realtime · Email notifications (Resend) · Role-based access · Vendor approval gate · MongoDB text search · Rate limiting · Graceful shutdown · Circuit breakers
 
 ---
 
-## Tech Stack
+## Architecture
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | React 19, React Router 7, Tailwind CSS 4 |
-| Build | Vite 8, ESLint |
-| Backend | Express 5, Node.js |
-| Database | MongoDB / Mongoose 9 (in-memory store fallback) |
-| Auth | JWT (jsonwebtoken), bcryptjs |
-| Uploads | Multer, Sharp (icon generation) |
-| Notifications | WhatsApp Cloud API (Meta) |
-| PWA | Service Worker, Web App Manifest |
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        BUYER CHECKOUT                           │
+│  Cart → placeOrder() → price snapshot → coupon validation       │
+│  → order created → payment captured → money enters ESCROW       │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       LEDGER ENTRY                              │
+│  capture: buyer → platform:escrow          ₦10,000              │
+│  commission: platform:escrow → platform:revenue  ₦1,000 (10%)  │
+│  seller: platform:escrow → seller:<id>     ₦9,000 (pending)    │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    FULFILLMENT FLOW                             │
+│  Vendor dispatches → Admin receives at warehouse → Ships to     │
+│  buyer → Order marked delivered → 7-day return window starts    │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       PAYOUT                                    │
+│  Window elapsed + no refund → Seller's share released           │
+│  payout: platform:escrow → seller:<id>                         │
+│  Vendor requests withdrawal → Admin approves → Paid             │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**What happens if a refund is needed?**
+- **Before payout:** Reversal comes from escrow — money goes back to buyer
+- **After payout:** Platform fronts from operating funds, claws back from seller
+
+This is the same pattern Jumia, Konga, and Amazon use. See [docs/architecture/escrow.md](docs/architecture/escrow.md) for the full flow.
 
 ---
 
-## Getting Started
-
-### Prerequisites
-
-- **Node.js** 18+
-- **npm** 9+
-- **MongoDB** (optional — the app runs with an in-memory store if no `MONGO_URI` is set)
-
-### Install & Run
+## Quick Start
 
 ```bash
-# Clone the repo
 git clone https://github.com/your-username/naijamart.git
 cd naijamart
-
-# Install dependencies
 npm install
-
-# Copy the env file and configure it
 cp .env.example .env
-
-# Start both the API and the dev server
 npm run dev:full
 ```
 
-The app will be available at **http://localhost:5173** (Vite) with the API at **http://localhost:5000**.
+**http://localhost:5173** — that's it. No database required — runs with an in-memory store.
 
-### Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MONGO_URI` | MongoDB connection string. Leave empty for in-memory store. | _(empty)_ |
-| `JWT_SECRET` | Secret for signing auth tokens. Use a strong value in production. | `naijamart-dev-secret` |
-| `PORT` | API server port. | `5000` |
-| `WHATSAPP_TOKEN` | Meta WhatsApp Cloud API access token. | _(empty)_ |
-| `WHATSAPP_PHONE_NUMBER_ID` | WhatsApp sender phone number ID from Meta. | _(empty)_ |
-
-### Available Scripts
-
-| Script | Description |
-|--------|-------------|
-| `npm run dev` | Start the Vite dev server only |
-| `npm run server` | Start the Express API server only |
-| `npm run dev:full` | Start both API and frontend concurrently |
-| `npm run build` | Production build with Vite |
-| `npm run preview` | Preview the production build |
-| `npm run lint` | Run ESLint |
-| `npm test` | Run Node.js test runner |
-
----
-
-## Project Structure
-
-```
-naijamart/
-├── public/                 # Static assets
-│   ├── icons/              # PWA icons (72–512px)
-│   ├── manifest.json       # Web App Manifest
-│   ├── sw.js               # Service Worker
-│   └── favicon.svg
-├── scripts/
-│   └── generate-icons.js   # Sharp-based icon generator
-├── server/                 # Express API
-│   ├── index.js            # Entry point
-│   ├── db.js               # MongoDB connection
-│   ├── seed.js             # Dev seed data
-│   ├── store.js            # In-memory repository (fallback)
-│   ├── lib/                # Utilities (errors, etc.)
-│   ├── middleware/          # Auth, rate limiting
-│   ├── models/             # Mongoose schemas (User, Product, Order, Ledger)
-│   ├── routes/             # API routes (auth, products, orders, vendors, ledger, upload)
-│   ├── services/           # WhatsApp notification service
-│   └── uploads/            # Uploaded product images
-├── src/                    # React frontend
-│   ├── App.jsx             # Router and layout
-│   ├── api.js              # API client
-│   ├── components/         # Shared UI (TopNav, Footer, CartDrawer, Skeleton, etc.)
-│   ├── context/            # Auth and Cart providers
-│   ├── pages/              # Page components
-│   │   ├── static/         # 12 info pages (About, FAQ, Terms, ...)
-│   │   └── vendor/         # Vendor dashboard pages
-│   └── main.jsx
-├── .env.example
-├── package.json
-└── vite.config.js
-```
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/health` | Health check |
-| `POST` | `/api/auth/register` | Register a new user |
-| `POST` | `/api/auth/login` | Login and receive a JWT |
-| `GET` | `/api/auth/me` | Get current user profile |
-| `PATCH` | `/api/auth/me` | Update profile (name, logo, whatsapp, password) |
-| `GET` | `/api/products` | List products (supports `?category=`, `?vendor=`, `?q=`) |
-| `GET` | `/api/products/:id` | Get a single product |
-| `POST` | `/api/products` | Create a product (vendor) |
-| `PUT` | `/api/products/:id` | Update a product (vendor) |
-| `DELETE` | `/api/products/:id` | Delete a product (vendor) |
-| `GET` | `/api/vendors/:id` | Get a vendor's public profile |
-| `GET` | `/api/orders` | List orders (scoped by role) |
-| `GET` | `/api/orders/:id` | Get order details |
-| `POST` | `/api/orders` | Place an order |
-| `PATCH` | `/api/orders/:id` | Update order status / fulfillment |
-| `POST` | `/api/upload` | Upload an image (vendor) |
-| `GET` | `/api/ledger` | Vendor payout ledger |
-
----
-
-## Default Seed Accounts
-
-When running with the in-memory store (no `MONGO_URI`), the app seeds demo data on first launch:
+### Demo Accounts
 
 | Role | Email | Password |
 |------|-------|----------|
@@ -180,6 +103,79 @@ When running with the in-memory store (no `MONGO_URI`), the app seeds demo data 
 
 ---
 
-## License
+## Tech Stack
 
-This project is private and not currently licensed for public use.
+| Layer | Technology | Why |
+|-------|-----------|-----|
+| Frontend | React 19, React Router 7, Tailwind CSS 4 | Modern stack, fast dev loop |
+| Build | Vite 8 | Instant HMR, clean builds |
+| Backend | Express 5, Node.js | Simple, well-understood |
+| Database | MongoDB / Mongoose 9 | Flexible schema, in-memory fallback |
+| Realtime | Socket.io 4 | Push notifications for orders & status |
+| Analytics | Recharts 2 | Vendor revenue & admin GMV dashboards |
+| Email | Resend | Transactional emails with great DX |
+| AI | OpenAI API | Product title/description/tag generation |
+| Auth | JWT + bcryptjs | Stateless, secure |
+| PWA | Service Worker | Installable on Android & iOS |
+
+---
+
+## Documentation
+
+Deep-dive architecture docs for contributors and reviewers:
+
+| Document | What It Covers |
+|----------|---------------|
+| [How the Escrow System Works](docs/architecture/escrow.md) | Money lifecycle, refund paths, payout eligibility |
+| [Why a Double-Entry Ledger](docs/architecture/ledger.md) | Accounting model, idempotency, account types |
+| [Multi-Vendor Order Splitting](docs/architecture/multi-vendor.md) | Order decomposition, warehouse consolidation, fulfillment |
+| [Security & Resilience](docs/architecture/security.md) | Auth, RBAC, upload hardening, circuit breakers, graceful shutdown |
+
+---
+
+## API Overview
+
+<details>
+<summary><strong>Click to expand full API reference</strong></summary>
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/health` | Health check with dependency status |
+| `POST` | `/api/auth/register` | Register (customer or vendor) |
+| `POST` | `/api/auth/login` | Login → JWT |
+| `GET` | `/api/products` | Search with `?q=`, `?minPrice=`, `?maxPrice=`, `?minRating=`, `?sort=`, `?page=` |
+| `POST` | `/api/products` | Create product (vendor) |
+| `POST` | `/api/products/bulk` | Bulk upload (vendor) |
+| `POST` | `/api/orders` | Place order with optional `couponCode` |
+| `PATCH` | `/api/orders/:id/fulfillment` | Vendor dispatch / admin confirm |
+| `POST` | `/api/orders/:id/refund` | Admin: refund line items |
+| `POST` | `/api/reviews` | Create verified purchase review |
+| `POST` | `/api/wishlist/:id` | Toggle wishlist |
+| `POST` | `/api/follows/:id` | Toggle follow vendor |
+| `POST` | `/api/coupons` | Create discount code (vendor) |
+| `POST` | `/api/withdrawals` | Request payout (vendor) |
+| `POST` | `/api/ai/generate-product` | AI product generation (vendor) |
+| `GET` | `/api/analytics/vendor` | Revenue charts (vendor) |
+| `GET` | `/api/analytics/admin` | GMV dashboard (admin) |
+
+**50+ endpoints total.** Full reference in [README.md](README.md#api-overview) or the route files.
+
+</details>
+
+---
+
+## What Makes This Project Stand Out
+
+1. **Real financial logic** — Escrow, commission splits, refunds with clawback. Not just CRUD.
+2. **Double-entry ledger** — Every naira movement is tracked with idempotent references. Retries can never double-book.
+3. **Resilience engineering** — Circuit breakers, retry with backoff, dead letter queues, graceful shutdown. The app survives external API failures.
+4. **Real-time everything** — Socket.io push notifications for new orders, status changes, and payouts.
+5. **Multi-vendor by design** — Single customer order splits across vendors with per-line fulfillment and warehouse consolidation.
+
+---
+
+<div align="center">
+
+**Built with 💚 for the Nigerian market**
+
+</div>

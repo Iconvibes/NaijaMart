@@ -3,7 +3,8 @@ import express from 'express'
 import cors from 'cors'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { connectDb } from './db.js'
+import mongoose from 'mongoose'
+import { connectDb, isMemoryDb } from './db.js'
 import { seedIfEmpty } from './seed.js'
 import { AppError } from './lib/errors.js'
 import authRoutes from './routes/auth.js'
@@ -12,20 +13,69 @@ import vendorRoutes from './routes/vendors.js'
 import orderRoutes from './routes/orders.js'
 import ledgerRoutes from './routes/ledger.js'
 import uploadRoutes from './routes/upload.js'
+import reviewRoutes from './routes/reviews.js'
+import notificationRoutes from './routes/notifications.js'
+import wishlistRoutes from './routes/wishlist.js'
+import followRoutes from './routes/follows.js'
+import couponRoutes from './routes/coupons.js'
+import withdrawalRoutes from './routes/withdrawals.js'
+import analyticsRoutes from './routes/analytics.js'
+import aiRoutes from './routes/ai.js'
+import { initSocket } from './services/realtime.js'
+import { circuits, getDeadLetters } from './lib/resilience.js'
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads')
 
 const app = express()
 app.use(cors())
-app.use(express.json())
+app.use(express.json({ limit: '10mb' }))
 
-app.get('/api/health', (req, res) => res.json({ ok: true }))
+// ─── Health check with dependency status ────────────────────────────────────
+app.get('/api/health', async (req, res) => {
+  const deps = {
+    mongodb: { status: 'ok', mode: isMemoryDb() ? 'in-memory' : 'connected' },
+    whatsapp: circuits.whatsapp.getStatus(),
+    resend: circuits.resend.getStatus(),
+    openai: circuits.openai.getStatus(),
+    deadLetters: getDeadLetters().length,
+  }
+
+  // Check MongoDB connection if using real DB
+  if (!isMemoryDb()) {
+    try {
+      await mongoose.connection.db.admin().ping()
+      deps.mongodb.status = 'ok'
+    } catch {
+      deps.mongodb.status = 'degraded'
+    }
+  }
+
+  const allHealthy = deps.mongodb.status !== 'degraded' &&
+    deps.whatsapp.state !== 'open' &&
+    deps.resend.state !== 'open'
+
+  res.status(allHealthy ? 200 : 503).json({
+    ok: allHealthy,
+    uptime: Math.round(process.uptime()),
+    memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
+    dependencies: deps,
+  })
+})
+
 app.use('/api/auth', authRoutes)
 app.use('/api/products', productRoutes)
 app.use('/api/vendors', vendorRoutes)
 app.use('/api/orders', orderRoutes)
 app.use('/api/ledger', ledgerRoutes)
 app.use('/api/upload', uploadRoutes)
+app.use('/api/reviews', reviewRoutes)
+app.use('/api/notifications', notificationRoutes)
+app.use('/api/wishlist', wishlistRoutes)
+app.use('/api/follows', followRoutes)
+app.use('/api/coupons', couponRoutes)
+app.use('/api/withdrawals', withdrawalRoutes)
+app.use('/api/analytics', analyticsRoutes)
+app.use('/api/ai', aiRoutes)
 
 // uploaded product images are served from server/uploads
 app.use('/uploads', express.static(uploadsDir))
@@ -49,8 +99,57 @@ app.use((err, req, res, next) => {
 // some environments set PORT=0, which Node reads as "random port" - never allow that
 const PORT = Number(process.env.PORT) > 0 ? Number(process.env.PORT) : 5000
 
-app.listen(PORT, async () => {
+const server = app.listen(PORT, async () => {
   await connectDb()
   await seedIfEmpty()
+  // Initialize Socket.io for realtime notifications
+  initSocket(server)
   console.log(`NaijaMart API running on http://localhost:${PORT}`)
+})
+
+// ─── Graceful Shutdown ─────────────────────────────────────────────────────
+// On SIGTERM/SIGINT: stop accepting new connections, finish in-flight
+// requests, then close the DB connection and exit cleanly.
+
+let isShuttingDown = false
+
+function gracefulShutdown(signal) {
+  if (isShuttingDown) return
+  isShuttingDown = true
+  console.log(`\n${signal} received — shutting down gracefully...`)
+
+  // Stop accepting new connections
+  server.close(async () => {
+    console.log('HTTP server closed')
+
+    // Close MongoDB connection
+    try {
+      await mongoose.connection.close()
+      console.log('MongoDB connection closed')
+    } catch {
+      // Already closed or never opened
+    }
+
+    console.log('Shutdown complete')
+    process.exit(0)
+  })
+
+  // Force kill after 10 seconds if something is stuck
+  setTimeout(() => {
+    console.error('Forced shutdown after timeout')
+    process.exit(1)
+  }, 10_000).unref()
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'))
+process.on('SIGINT', () => gracefulShutdown('SIGINT'))
+
+// Log unhandled rejections instead of crashing
+process.on('unhandledRejection', (reason) => {
+  console.error('Unhandled rejection:', reason)
+})
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught exception:', err)
+  gracefulShutdown('uncaughtException')
 })

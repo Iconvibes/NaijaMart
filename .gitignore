@@ -13,6 +13,14 @@ dist
 dist-ssr
 *.local
 
+# Environment files (NEVER commit)
+.env
+.env.*
+!.env.example
+
+# Personal interview docs (not for repo)
+docs/INTERVIEW-PORTFOLIO.md
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

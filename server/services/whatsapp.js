@@ -4,13 +4,10 @@
 // In development mode (no API credentials), messages are logged to the
 // console and a wa.me link is generated for manual testing.
 //
-// Setup:
-// 1. Create a Meta Business account at business.facebook.com
-// 2. Set up WhatsApp Cloud API at developers.facebook.com
-// 3. Get a temporary access token and phone number ID
-// 4. Add the following to .env:
-//    WHATSAPP_TOKEN=your_access_token
-//    WHATSAPP_PHONE_NUMBER_ID=your_phone_number_id
+// Resilience: uses retry with backoff, circuit breaker, and timeout to
+// handle transient failures and sustained outages gracefully.
+
+import { retry, circuits, withTimeout, enqueueDeadLetter } from '../lib/resilience.js'
 
 const WHATSAPP_API = 'https://graph.facebook.com/v18.0'
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN || ''
@@ -60,29 +57,39 @@ https://naijamart.com/vendor/orders
 — NaijaMart`
 }
 
-// Send a WhatsApp message using the Cloud API
+// Send a WhatsApp message using the Cloud API — with retry, circuit breaker, and timeout
 async function sendWhatsAppMessage(to, text) {
   const url = `${WHATSAPP_API}/${WHATSAPP_PHONE_ID}/messages`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      messaging_product: 'whatsapp',
-      to: formatPhone(to),
-      type: 'text',
-      text: { body: text },
-    }),
-  })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error?.message || `WhatsApp API returned ${res.status}`)
-  }
-
-  return res.json()
+  return circuits.whatsapp.execute(() =>
+    retry(
+      () =>
+        withTimeout(
+          fetch(url, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${WHATSAPP_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              messaging_product: 'whatsapp',
+              to: formatPhone(to),
+              type: 'text',
+              text: { body: text },
+            }),
+          }).then(async (res) => {
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}))
+              throw new Error(err.error?.message || `WhatsApp API returned ${res.status}`)
+            }
+            return res.json()
+          }),
+          10_000, // 10s timeout
+          'whatsapp'
+        ),
+      { retries: 2, baseDelayMs: 2000, label: 'whatsapp' }
+    )
+  )
 }
 
 // Main notification function — call this after an order is placed.
@@ -108,13 +115,26 @@ export async function notifyVendors(order, repo) {
     const message = buildOrderMessage(order, items, vendor.name)
 
     if (isConfigured()) {
-      // Production: send via WhatsApp Cloud API
+      // Production: send via WhatsApp Cloud API with resilience
       try {
         await sendWhatsAppMessage(vendor.whatsapp, message)
         results.push({ vendorId, sent: true, phone: vendor.whatsapp })
         console.log(`WhatsApp sent to ${vendor.name} (${vendor.whatsapp})`)
       } catch (err) {
-        console.error(`WhatsApp failed for ${vendor.name}:`, err.message)
+        if (err.circuitOpen) {
+          console.warn(`WhatsApp circuit breaker open — skipping notification for ${vendor.name}`)
+        } else {
+          console.error(`WhatsApp failed for ${vendor.name}:`, err.message)
+        }
+        // Queue for retry later
+        enqueueDeadLetter({
+          type: 'whatsapp',
+          userId: vendorId,
+          orderId: order.id,
+          phone: vendor.whatsapp,
+          message,
+          error: err.message,
+        })
         results.push({ vendorId, sent: false, reason: err.message })
       }
     } else {

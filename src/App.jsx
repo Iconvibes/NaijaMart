@@ -20,6 +20,8 @@ import OrderTrackingPage from './pages/OrderTrackingPage'
 import AccountPage from './pages/AccountPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
+import StorePage from './pages/StorePage'
+import NotificationsPage from './pages/NotificationsPage'
 import AboutPage from './pages/static/AboutPage'
 import TermsPage from './pages/static/TermsPage'
 import PrivacyPage from './pages/static/PrivacyPage'
@@ -37,8 +39,14 @@ import VendorProducts from './pages/vendor/VendorProducts'
 import VendorAddProduct from './pages/vendor/VendorAddProduct'
 import VendorEditProduct from './pages/vendor/VendorEditProduct'
 import VendorOrders from './pages/vendor/VendorOrders'
+import VendorWallet from './pages/vendor/VendorWallet'
+import VendorCoupons from './pages/vendor/VendorCoupons'
+import VendorAnalytics from './pages/vendor/VendorAnalytics'
 import VendorSettings from './pages/vendor/VendorSettings'
 import AdminDashboard from './pages/AdminDashboard'
+import AdminVendors from './pages/admin/AdminVendors'
+import AdminWithdrawals from './pages/admin/AdminWithdrawals'
+import AdminAnalytics from './pages/admin/AdminAnalytics'
 
 function AppRoutes() {
   const { pathname } = useLocation()
@@ -60,9 +68,11 @@ function AppRoutes() {
       <Route path="/deals" element={<ListingPage key="deals" mode="deals" />} />
       <Route path="/category/:slug" element={<ListingPage key={pathname} mode="category" />} />
       <Route path="/product/:id" element={<ProductDetailKeyed />} />
+      <Route path="/store/:slug" element={<StorePage />} />
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/track-order" element={<OrderTrackingPage />} />
       <Route path="/account" element={<AccountPage />} />
+      <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/about" element={<AboutPage />} />
@@ -90,6 +100,9 @@ function AppRoutes() {
         <Route path="add-product" element={<VendorAddProduct />} />
         <Route path="edit-product/:id" element={<VendorEditProduct />} />
         <Route path="orders" element={<VendorOrders />} />
+        <Route path="wallet" element={<VendorWallet />} />
+        <Route path="coupons" element={<VendorCoupons />} />
+        <Route path="analytics" element={<VendorAnalytics />} />
         <Route path="settings" element={<VendorSettings />} />
       </Route>
       <Route
@@ -97,6 +110,30 @@ function AppRoutes() {
         element={
           <ProtectedRoute roles={['admin']}>
             <AdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/vendors"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminVendors />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/withdrawals"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminWithdrawals />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/analytics"
+        element={
+          <ProtectedRoute roles={['admin']}>
+            <AdminAnalytics />
           </ProtectedRoute>
         }
       />

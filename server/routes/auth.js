@@ -30,7 +30,10 @@ router.post('/register', authRateLimit, async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 10)
   const data = { name, email, passwordHash, role: cleanRole }
-  if (cleanRole === 'vendor' && whatsapp) data.whatsapp = whatsapp.trim()
+  if (cleanRole === 'vendor') {
+    data.vendorStatus = 'pending'
+    if (whatsapp) data.whatsapp = whatsapp.trim()
+  }
   const user = await repo.createUser(data)
   res.status(201).json({ token: sign(user), user: publicUser(user) })
 })
@@ -52,7 +55,7 @@ router.get('/me', requireAuth, (req, res) => {
 
 // PATCH /api/auth/me - update the current user's profile (name, logo, whatsapp, password)
 router.patch('/me', requireAuth, async (req, res) => {
-  const { name, logo, whatsapp, currentPassword, newPassword } = req.body || {}
+  const { name, logo, banner, bio, whatsapp, currentPassword, newPassword } = req.body || {}
   const updates = {}
 
   if (name && typeof name === 'string' && name.trim()) {
@@ -65,6 +68,14 @@ router.patch('/me', requireAuth, async (req, res) => {
 
   if (whatsapp !== undefined) {
     updates.whatsapp = whatsapp ? whatsapp.trim() : null
+  }
+
+  if (banner !== undefined) {
+    updates.banner = banner || null
+  }
+
+  if (bio !== undefined) {
+    updates.bio = typeof bio === 'string' ? bio.trim() : ''
   }
 
   if (newPassword) {

@@ -37,4 +37,4 @@ export function createProductSource({ fetchProducts: fetcher }) {
   }
 }
 
-export const productSource = createProductSource({ fetchProducts: () => api.products() })
+export const productSource = createProductSource({ fetchProducts: () => api.products().then((r) => r.products || r) })

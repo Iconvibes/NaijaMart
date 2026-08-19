@@ -48,6 +48,9 @@ const orderSchema = new mongoose.Schema(
     // Set when the order is marked delivered; the seller payout window runs
     // from here.
     deliveredAt: { type: Date, default: null },
+    // Coupon applied at checkout
+    couponCode: { type: String, default: null },
+    discountAmount: { type: Number, default: 0, min: 0 },
   },
   { timestamps: true }
 )
