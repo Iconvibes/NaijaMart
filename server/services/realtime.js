@@ -5,9 +5,21 @@ import { repo } from '../store.js'
 
 let io = null
 
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
+
 export function initSocket(server) {
   io = new Server(server, {
-    cors: { origin: '*', methods: ['GET', 'POST'] },
+    cors: {
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true)
+        if (allowedOrigins.includes(origin)) return callback(null, true)
+        callback(new Error('Not allowed by CORS'))
+      },
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
   })
 
   // Auth middleware: verify JWT on connection

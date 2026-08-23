@@ -1,6 +1,7 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import mongoose from 'mongoose'
@@ -26,8 +27,38 @@ import { circuits, getDeadLetters } from './lib/resilience.js'
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads')
 
+// ─── Validate critical env vars before starting ──────────────────────────────
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET || JWT_SECRET === 'naijamart-dev-secret') {
+  console.error('\n\x1b[31m⚠  FATAL: JWT_SECRET is missing or still the dev default.\x1b[0m')
+  console.error('   Set a strong, unique JWT_SECRET in your .env file.')
+  console.error('   Refusing to start to prevent token forgery.\n')
+  process.exit(1)
+}
+
+// Parse allowed origins from env. Falls back to localhost for development.
+// Production: CORS_ORIGINS=https://naijamart.com,https://www.naijamart.com
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+  : ['http://localhost:5173', 'http://localhost:3000', 'http://127.0.0.1:5173']
+
 const app = express()
-app.use(cors())
+
+// Security headers via helmet (CSP, HSTS, X-Frame-Options, etc.)
+app.use(helmet({
+  contentSecurityPolicy: false, // disable until we can audit inline scripts + external assets
+  crossOriginEmbedderPolicy: false, // blocks cross-origin images which would break product images
+}))
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (server-to-server, curl, mobile apps)
+    if (!origin) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
+    callback(new Error('Not allowed by CORS'))
+  },
+  credentials: true,
+}))
 app.use(express.json({ limit: '10mb' }))
 
 // ─── Health check with dependency status ────────────────────────────────────
@@ -80,6 +111,19 @@ app.use('/api/ai', aiRoutes)
 // uploaded product images are served from server/uploads
 app.use('/uploads', express.static(uploadsDir))
 
+// Serve built frontend assets from dist/ (production)
+const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist')
+app.use(express.static(distDir, { index: false }))
+
+// SPA fallback: any non-API request that didn't match a static file
+// gets index.html so React Router handles the client-side route.
+app.get(/^\/(?!api\/|uploads\/).*/, (req, res, next) => {
+  res.sendFile(path.join(distDir, 'index.html'), (err) => {
+    if (err) next() // dist doesn't exist yet (dev mode) — fall through to 404
+  })
+})
+
+// API / uploads catch-all for anything still unmatched
 app.use((req, res) => res.status(404).json({ message: 'Not found' }))
 
 // Route + multer error handler. Typed errors keep their status; multer upload

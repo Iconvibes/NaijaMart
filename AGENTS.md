@@ -5,13 +5,13 @@ Non-obvious facts about this codebase that can't be recovered by reading the cod
 ## Critical Regressions to Fix
 
 - **`api.products()` response shape changed (FIXED).** Changed from flat array to `{ products, total, page, limit }`. Fixed by unwrapping in `productSource.js` (`api.products().then(r => r.products || r)`), `AdminDashboard.jsx` (`data?.[1]?.products || data?.[1]`), and `VendorProducts.jsx` (`data?.products || data`). Any new component calling `api.products()` must handle the paginated response shape.
-- **`email.js` `getClient()` was missing `async` (FIXED).** Used `await import('resend')` without `async` declaration. Fixed by adding `async`. Would crash at runtime when `RESEND_API_KEY` is set.
 
 ## Environment & Config Quirks
 
-- **MongoDB env var mismatch.** `.env.example` and README say `MONGO_URI`, but `server/db.js` reads `process.env.MONGODB_URI`. Setting `MONGO_URI` in `.env` has no effect — the app falls back to in-memory mode. Pre-existing.
+- **MongoDB env var backward compat.** `server/db.js` now accepts both `MONGODB_URI` (correct) and legacy `MONGO_URI` (from old `.env` files). Prints a deprecation warning when `MONGO_URI` is used. New deployments should use `MONGODB_URI`.
 - **In-memory store is the default.** No `MONGO_URI` → fully in-memory, data lost on restart. The app is designed to demo without any database. The `isMemoryDb()` flag gates every repo method.
 - **Upload images are public by design.** `express.static('/uploads')` serves product images without auth. Adding auth here would break all product images site-wide.
+- **`JWT_SECRET` is required at startup.** Server refuses to start (exit code 1) if `JWT_SECRET` is missing or still the default `naijamart-dev-secret`. Set a strong secret in `.env` before running.
 
 ## Architecture Patterns
 
@@ -22,9 +22,15 @@ Non-obvious facts about this codebase that can't be recovered by reading the cod
 
 ## Frontend Gotchas
 
-- **ListingPage has a pre-existing lint error.** `loading` is referenced at line 198 but never destructured from `useAsync` (only `data` is). This means `loading` is `undefined` (falsy), so skeleton loading states never render on the shop page. Also `formatNaira` is imported but unused in `ListingPage` (used by `PriceFilter`).
-- **Bundle is >500KB.** Recharts + Socket.io client pushed the main chunk over Vite's warning threshold. Needs code splitting / lazy loading for admin/vendor analytics pages.
 - **Socket.io connects to `window.location.origin`.** Works in dev, but production behind a reverse proxy (nginx, Cloudflare) needs WebSocket upgrade headers configured.
+- **Rate limiter key must use `req.originalUrl`, not `req.path`.** Express mounted routers set `req.path` to `/` for all routes, so rate limiters on `POST /api/orders` and `POST /api/reviews` would share the same bucket. Always use `req.originalUrl` to get the full path.
+
+## Deployment & Testing
+
+- **Production serves from `dist/`.** After `npm run build`, `server/index.js` serves static assets from `dist/` with SPA fallback for client-side routes. Run `npm run build` before starting the production server.
+- **`CORS_ORIGINS` must be set for production.** Defaults to localhost only. Set to your domain(s) comma-separated. Socket.io uses the same whitelist.
+- **Windows ESM temp scripts need `file:///` URLs.** When writing temp `.mjs` files for `execSync` testing, absolute Windows paths must use `file:///C:/...` format for ESM imports. Also, `process.exit(1)` in ESM may not flush stderr before `execSync` captures — check exit code, not output.
+- **Kill ALL node processes before restarting.** On Windows, stale server processes hold the port. Use `taskkill //F //IM node.exe` to clear them before restarting.
 
 ## Resilience Notes
 

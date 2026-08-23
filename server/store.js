@@ -73,8 +73,10 @@ const toProductObj = (p) => ({
 const toOrderObj = (o) => ({
   id: String(o.id),
   customerName: o.customerName,
+  customerEmail: o.customerEmail || null,
   customerPhone: o.customerPhone,
   customerAddress: o.customerAddress,
+  customerId: o.customerId ? String(o.customerId) : null,
   items: o.items.map((i) => ({
     productId: String(i.productId),
     vendorId: String(i.vendorId),

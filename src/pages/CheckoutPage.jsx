@@ -12,6 +12,7 @@ export default function CheckoutPage() {
   const { items, cartCount, cartTotal, savings, clearCart } = useCart()
   const { user } = useAuth()
   const [customerName, setCustomerName] = useState(user?.name || '')
+  const [customerEmail, setCustomerEmail] = useState(user?.email || '')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('card')
@@ -35,6 +36,7 @@ export default function CheckoutPage() {
       // catalog, so clients can't forge prices or vendor attribution.
       const { order } = await api.createOrder({
         customerName: customerName.trim(),
+        customerEmail: customerEmail.trim() || undefined,
         customerPhone: customerPhone.trim(),
         customerAddress: customerAddress.trim(),
         paymentMethod,
@@ -181,6 +183,18 @@ export default function CheckoutPage() {
                 placeholder="e.g. Ada Obi"
                 className="w-full border border-gray-300 rounded text-sm px-3 py-2.5 outline-none focus:border-primary"
               />
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-bold text-secondary mb-1 block">Email address</span>
+              <input
+                type="email"
+                value={customerEmail}
+                onChange={(e) => setCustomerEmail(e.target.value)}
+                placeholder="e.g. ada@example.com"
+                className="w-full border border-gray-300 rounded text-sm px-3 py-2.5 outline-none focus:border-primary"
+              />
+              <span className="text-[10px] text-gray-400 mt-1 block">For order updates and delivery notifications</span>
             </label>
 
             <label className="block">

@@ -62,8 +62,9 @@ function formatNaira(amount) {
 }
 
 export async function sendOrderConfirmation(order) {
+  if (!order.customerEmail) return // no email on file — skip silently
   const items = order.items.map((i) => `<li>${i.name} × ${i.qty} — ${formatNaira(i.price * i.qty)}</li>`).join('')
-  await send(order.customerPhone + '@placeholder', `Order Confirmation — #${String(order.id).slice(-8).toUpperCase()}`, `
+  await send(order.customerEmail, `Order Confirmation — #${String(order.id).slice(-8).toUpperCase()}`, `
     <h2>Order Confirmed!</h2>
     <p>Hi ${order.customerName},</p>
     <p>Your order <strong>#${String(order.id).slice(-8).toUpperCase()}</strong> has been placed successfully.</p>
@@ -75,13 +76,14 @@ export async function sendOrderConfirmation(order) {
 }
 
 export async function sendShippingUpdate(order, status) {
+  if (!order.customerEmail) return // no email on file — skip silently
   const statusMessages = {
     processing: 'is being processed',
     shipped: 'has been shipped',
     delivered: 'has been delivered',
   }
   const message = statusMessages[status] || `status updated to ${status}`
-  await send(order.customerPhone + '@placeholder', `Order Update — #${String(order.id).slice(-8).toUpperCase()}`, `
+  await send(order.customerEmail, `Order Update — #${String(order.id).slice(-8).toUpperCase()}`, `
     <h2>Order Update</h2>
     <p>Hi ${order.customerName},</p>
     <p>Your order <strong>#${String(order.id).slice(-8).toUpperCase()}</strong> ${message}.</p>

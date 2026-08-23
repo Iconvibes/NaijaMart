@@ -3,8 +3,12 @@ import mongoose from 'mongoose'
 const orderSchema = new mongoose.Schema(
   {
     customerName: { type: String, required: true, trim: true },
+    customerEmail: { type: String, default: null, trim: true },
     customerPhone: { type: String, required: true, trim: true },
     customerAddress: { type: String, required: true, trim: true },
+    // Set when the checkout is made by a logged-in user. Enables review
+    // ownership verification and email notifications.
+    customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     // Line items snapshot the product at purchase time so the order stays
     // intact even if the product changes later. vendorId per line enables
     // per-vendor order views.

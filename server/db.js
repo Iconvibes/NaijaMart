@@ -7,7 +7,11 @@ let mode = 'memory'
 export const isMemoryDb = () => mode === 'memory'
 
 export async function connectDb() {
-  const uri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/naijamart'
+  // Accept both MONGODB_URI (correct) and legacy MONGO_URI (from old .env files)
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/naijamart'
+  if (process.env.MONGO_URI && !process.env.MONGODB_URI) {
+    console.warn('⚠  MONGO_URI is deprecated — rename it to MONGODB_URI in your .env file.')
+  }
   try {
     await mongoose.connect(uri, { serverSelectionTimeoutMS: 2500 })
     mode = 'mongo'

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { repo } from '../store.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 import { placeOrder } from '../services/orderIntake.js'
 import { recordPaymentCapture, refundOrderLines } from '../services/money.js'
 import { notifyVendors } from '../services/whatsapp.js'
@@ -31,6 +32,7 @@ router.get('/lookup/:id', async (req, res) => {
     order: {
       id: order.id,
       customerName: order.customerName,
+      customerEmail: order.customerEmail || null,
       customerPhone: order.customerPhone,
       customerAddress: order.customerAddress,
       items: order.items.map((i) => ({
@@ -55,7 +57,28 @@ router.get('/lookup/:id', async (req, res) => {
 // module, which throws typed errors the global handler maps to responses.
 // Card/transfer payments are captured here (the processor seam), booking the
 // money into escrow; cod stays pending until the admin marks it captured.
-router.post('/', async (req, res) => {
+const orderRateLimit = rateLimit({ windowMs: 60_000, max: 5, message: 'Too many orders — please wait a minute before trying again' })
+router.post('/', orderRateLimit, async (req, res) => {
+  // Attach the logged-in user's ID and email so the order can be linked
+  // to their account for reviews and email notifications.
+  let customerId = null
+  let customerEmail = req.body?.customerEmail || null
+  const header = req.headers.authorization || ''
+  if (header.startsWith('Bearer ')) {
+    try {
+      const jwt = await import('jsonwebtoken')
+      const { JWT_SECRET } = await import('../middleware/auth.js')
+      const payload = jwt.default.verify(header.slice(7), JWT_SECRET)
+      const user = await repo.findUserById(payload.id)
+      if (user) {
+        customerId = user.id
+        if (!customerEmail) customerEmail = user.email
+      }
+    } catch { /* guest checkout — continue without customerId */ }
+  }
+  // Merge server-detected fields into the body for placeOrder
+  req.body.customerId = customerId
+  if (customerEmail) req.body.customerEmail = customerEmail
   const order = await placeOrder(req.body)
   if (order.payment?.status === 'captured') {
     await recordPaymentCapture(order)

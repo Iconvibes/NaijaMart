@@ -65,9 +65,13 @@ async function validateAndReserveCoupon(couponCode, subtotal) {
   return { coupon, discount }
 }
 
-export async function placeOrder({ customerName, customerPhone, customerAddress, items, paymentMethod, couponCode } = {}) {
+export async function placeOrder({ customerName, customerEmail, customerPhone, customerAddress, customerId, items, paymentMethod, couponCode } = {}) {
   if (!customerName || !customerPhone || !customerAddress) {
     throw new ValidationError('Name, phone and address are required')
+  }
+  // Validate email format if provided
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail)) {
+    throw new ValidationError('Please enter a valid email address')
   }
   if (!Array.isArray(items) || items.length === 0) {
     throw new ValidationError('Your cart is empty')
@@ -107,8 +111,10 @@ export async function placeOrder({ customerName, customerPhone, customerAddress,
 
   return repo.createOrder({
     customerName: String(customerName).trim(),
+    customerEmail: customerEmail ? String(customerEmail).trim() : null,
     customerPhone: String(customerPhone).trim(),
     customerAddress: String(customerAddress).trim(),
+    customerId: customerId || null,
     items: lineItems,
     total: finalTotal,
     couponCode: couponCode || null,

@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { CartProvider } from './context/CartProvider'
 import { AuthProvider } from './context/AuthProvider'
@@ -41,17 +42,36 @@ import VendorEditProduct from './pages/vendor/VendorEditProduct'
 import VendorOrders from './pages/vendor/VendorOrders'
 import VendorWallet from './pages/vendor/VendorWallet'
 import VendorCoupons from './pages/vendor/VendorCoupons'
-import VendorAnalytics from './pages/vendor/VendorAnalytics'
 import VendorSettings from './pages/vendor/VendorSettings'
-import AdminDashboard from './pages/AdminDashboard'
 import AdminVendors from './pages/admin/AdminVendors'
 import AdminWithdrawals from './pages/admin/AdminWithdrawals'
-import AdminAnalytics from './pages/admin/AdminAnalytics'
+
+// Lazy-load heavy pages that most visitors never see. This pulls Recharts
+// (~400KB) and the analytics logic out of the main bundle into separate
+// chunks that load on demand.
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
+const AdminAnalytics = lazy(() => import('./pages/admin/AdminAnalytics'))
+const VendorAnalytics = lazy(() => import('./pages/vendor/VendorAnalytics'))
+
+function RouteSpinner() {
+  return (
+    <div className="min-h-[50vh] grid place-items-center">
+      <div className="flex items-center gap-3 text-sm text-gray-500">
+        <svg className="animate-spin h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        Loading…
+      </div>
+    </div>
+  )
+}
 
 function AppRoutes() {
   const { pathname } = useLocation()
 
   return (
+    <Suspense fallback={<RouteSpinner />}>
     <Routes>
       <Route
         path="/"
@@ -139,6 +159,7 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </Suspense>
   )
 }
 

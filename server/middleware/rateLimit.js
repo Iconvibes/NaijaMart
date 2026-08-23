@@ -17,7 +17,9 @@ setInterval(() => {
 export function rateLimit({ windowMs = 60_000, max = 10, message = 'Too many requests, please try again later' } = {}) {
   return (req, res, next) => {
     const ip = req.ip || req.connection?.remoteAddress || 'unknown'
-    const key = `${ip}:${req.route?.path || req.path}`
+    // Use originalUrl to get the full path (/api/orders, /api/reviews, etc.)
+    // instead of req.path which is just '/' for mounted routers.
+    const key = `${ip}:${req.originalUrl}`
     const now = Date.now()
 
     const entries = (buckets.get(key) || []).filter((t) => t > now - windowMs)

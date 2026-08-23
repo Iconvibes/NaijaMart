@@ -38,7 +38,7 @@ export default function ListingPage({ mode = 'category' }) {
   const [filtersOpen, setFiltersOpen] = useState(false)
   // Starts from the static catalog, then swaps in live API products so
   // vendor-created listings appear in the storefront.
-  const { data: all } = useAsync(productSource.fetchProducts, { initialData: catalogProducts })
+  const { data: all, loading } = useAsync(productSource.fetchProducts, { initialData: catalogProducts })
 
   const category = mode === 'category' ? getCategoryBySlug(slug) : null
 

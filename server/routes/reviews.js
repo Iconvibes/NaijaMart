@@ -1,11 +1,15 @@
 import { Router } from 'express'
 import { repo } from '../store.js'
 import { requireAuth } from '../middleware/auth.js'
+import { rateLimit } from '../middleware/rateLimit.js'
 
 const router = Router()
 
+const reviewRateLimit = rateLimit({ windowMs: 60_000, max: 10, message: 'Too many reviews — please wait a minute' })
+const helpfulRateLimit = rateLimit({ windowMs: 60_000, max: 20, message: 'Too many votes — please wait a minute' })
+
 // POST /api/reviews - customer creates a review (must be verified purchase)
-router.post('/', requireAuth, async (req, res) => {
+router.post('/', requireAuth, reviewRateLimit, async (req, res) => {
   const { orderId, productId, rating, title, text, images } = req.body || {}
 
   if (!orderId || !productId || !rating) {
@@ -18,9 +22,11 @@ router.post('/', requireAuth, async (req, res) => {
   // Verify the order exists, belongs to this customer, and is delivered
   const order = await repo.findOrderById(orderId)
   if (!order) return res.status(404).json({ message: 'Order not found' })
-  if (order.customerName !== req.user.name && order.customerPhone !== req.user.phone) {
-    // Loose check — the order may not have customerId stored yet, so check by name
-    // For stricter: would need customerId on the Order model
+  if (order.customerId && order.customerId !== req.user.id) {
+    return res.status(403).json({ message: 'You can only review your own orders' })
+  }
+  if (!order.customerId) {
+    return res.status(403).json({ message: 'This order cannot be reviewed — it was placed as a guest' })
   }
   if (order.status !== 'delivered') {
     return res.status(400).json({ message: 'You can only review delivered orders' })
@@ -78,7 +84,7 @@ router.get('/vendor/:vendorId', async (req, res) => {
 })
 
 // POST /api/reviews/:id/helpful - increment helpful count
-router.post('/:id/helpful', async (req, res) => {
+router.post('/:id/helpful', helpfulRateLimit, async (req, res) => {
   const updated = await repo.updateReviewHelpful(req.params.id)
   if (!updated) return res.status(404).json({ message: 'Review not found' })
   res.json({ review: updated })
