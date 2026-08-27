@@ -10,6 +10,7 @@ import Wishlist from './models/Wishlist.js'
 import Follow from './models/Follow.js'
 import Coupon from './models/Coupon.js'
 import Withdrawal from './models/Withdrawal.js'
+import HelpfulVote from './models/HelpfulVote.js'
 
 // In-memory fallback used when MongoDB is unreachable. Kept behind the same
 // repository interface so routes never know which store is active.
@@ -24,6 +25,7 @@ const mem = {
   follows: [],
   coupons: [],
   withdrawals: [],
+  helpfulVotes: [],
   uid: 0,
   pid: 0,
   oid: 0,
@@ -34,6 +36,7 @@ const mem = {
   fid: 0,
   cid: 0,
   wdid: 0,
+  hid: 0,
 }
 
 const toUserObj = (u) => ({
@@ -680,6 +683,33 @@ export const repo = {
     }
     const doc = await Review.findByIdAndUpdate(id, { $inc: { helpful: increment } }, { new: true })
     return doc ? toReviewObj({ ...doc.toObject(), id: doc._id }) : null
+  },
+
+  // ---- helpful votes (one per user per review) ----
+
+  async findHelpfulVote(reviewId, userId) {
+    if (isMemoryDb()) {
+      return mem.helpfulVotes.find(
+        (v) => String(v.reviewId) === String(reviewId) && String(v.userId) === String(userId)
+      ) || null
+    }
+    const doc = await HelpfulVote.findOne({ reviewId, userId })
+    return doc ? { id: String(doc._id), reviewId: String(doc.reviewId), userId: String(doc.userId) } : null
+  },
+
+  async createHelpfulVote(data) {
+    if (isMemoryDb()) {
+      const v = { id: `h${++mem.hid}`, createdAt: new Date().toISOString(), ...data }
+      mem.helpfulVotes.push(v)
+      return v
+    }
+    try {
+      const doc = await HelpfulVote.create(data)
+      return { id: String(doc._id), reviewId: String(doc.reviewId), userId: String(doc.userId) }
+    } catch {
+      // Duplicate key error - user already voted
+      return null
+    }
   },
 
   async updateProductRating(productId) {

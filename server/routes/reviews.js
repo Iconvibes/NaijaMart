@@ -101,8 +101,15 @@ router.get('/vendor/:vendorId', async (req, res) => {
   res.json({ reviews, total, page: pageNum, limit: limitNum })
 })
 
-// POST /api/reviews/:id/helpful - increment helpful count
-router.post('/:id/helpful', helpfulRateLimit, async (req, res) => {
+// POST /api/reviews/:id/helpful - increment helpful count (one vote per user)
+router.post('/:id/helpful', requireAuth, helpfulRateLimit, async (req, res) => {
+  // Check if user already voted on this review
+  const existing = await repo.findHelpfulVote(req.params.id, req.user.id)
+  if (existing) {
+    return res.status(409).json({ message: 'You have already found this review helpful' })
+  }
+  // Record the vote
+  await repo.createHelpfulVote({ reviewId: req.params.id, userId: req.user.id })
   const updated = await repo.updateReviewHelpful(req.params.id)
   if (!updated) return res.status(404).json({ message: 'Review not found' })
   res.json({ review: updated })
