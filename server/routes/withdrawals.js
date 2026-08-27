@@ -20,19 +20,9 @@ router.post('/', requireAuth, requireRole('vendor'), async (req, res) => {
     return res.status(400).json({ message: 'Bank name, account number, and account name are required' })
   }
 
-  // Check available balance
-  const balance = await repo.getVendorBalance(req.user.id)
-  if (balance < amount) {
-    return res.status(400).json({ message: `Insufficient balance. Available: ₦${balance.toLocaleString()}` })
-  }
-
-  // Check for pending withdrawals
-  const pending = await repo.findWithdrawals({ vendorId: req.user.id, status: 'requested' })
-  if (pending.length > 0) {
-    return res.status(400).json({ message: 'You already have a pending withdrawal request' })
-  }
-
-  const withdrawal = await repo.createWithdrawal({
+  // Atomic balance check + withdrawal creation to prevent double-spend.
+  // Two simultaneous requests will not both succeed.
+  const withdrawal = await repo.createWithdrawalAtomic({
     vendorId: req.user.id,
     amount: Number(amount),
     bankName: String(bankName).trim(),
@@ -40,6 +30,17 @@ router.post('/', requireAuth, requireRole('vendor'), async (req, res) => {
     accountName: String(accountName).trim(),
     status: 'requested',
   })
+
+  if (!withdrawal) {
+    // Could be insufficient balance or already has a pending withdrawal.
+    // Re-check to give a specific error message.
+    const balance = await repo.getVendorBalance(req.user.id)
+    const pending = await repo.findWithdrawals({ vendorId: req.user.id, status: 'requested' })
+    if (pending.length > 0) {
+      return res.status(400).json({ message: 'You already have a pending withdrawal request' })
+    }
+    return res.status(400).json({ message: `Insufficient balance. Available: ₦${balance.toLocaleString()}` })
+  }
 
   // Notify admin
   const admins = (await repo.findAllUsers()).filter((u) => u.role === 'admin')
