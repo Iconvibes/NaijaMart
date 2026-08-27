@@ -6,6 +6,7 @@ import { useAuth } from '../context/useAuth'
 import { useAsync } from '../hooks/useAsync'
 import { api } from '../api'
 import { CartIcon, MenuIcon, SearchIcon, ChevronDownIcon, TruckIcon, PhoneIcon, ShieldIcon, BellIcon } from './Icons'
+import SearchAutocomplete from './SearchAutocomplete'
 
 const Logo = () => (
   <Link to="/" className="flex items-center gap-2 shrink-0" aria-label="NaijaMart home">
@@ -87,34 +88,18 @@ export default function TopNav() {
 
         <Logo />
 
-        {/* search - full width row on mobile */}
-        <form
+        {/* search with autocomplete */}
+        <SearchAutocomplete
+          category={category}
+          setCategory={setCategory}
+          query={query}
+          setQuery={setQuery}
           onSubmit={handleSearch}
-          className="flex-1 flex bg-white border-2 border-primary rounded-md overflow-hidden max-w-2xl"
         >
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="hidden sm:block w-44 text-xs text-secondary bg-background px-3 py-2.5 border-r border-gray-300 outline-none cursor-pointer"
-            aria-label="Search category"
-          >
-            {categoryOptions.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search products, brands and categories"
-            className="flex-1 px-3 py-2.5 text-sm outline-none min-w-0"
-            aria-label="Search products"
-          />
-          <button type="submit" className="bg-primary text-white px-4 sm:px-6 flex items-center gap-2 hover:bg-primary/90 transition-colors" aria-label="Search">
-            <SearchIcon className="w-4 h-4" />
-            <span className="hidden md:inline text-sm font-semibold">Search</span>
-          </button>
-        </form>
+          {categoryOptions.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </SearchAutocomplete>
 
         {/* right actions */}
         <div className="hidden lg:flex items-center gap-4 shrink-0">

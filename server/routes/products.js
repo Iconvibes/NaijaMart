@@ -22,6 +22,27 @@ async function withVendor(list) {
   })
 }
 
+// GET /api/products/suggest - lightweight autocomplete suggestions
+router.get('/suggest', async (req, res) => {
+  const q = (req.query.q || '').trim()
+  if (q.length < 2) return res.json({ suggestions: [] })
+
+  const result = await repo.findProducts({ q, limit: 8, approved: true })
+  const vendors = new Map((await repo.findVendors()).map((v) => [v.id, v]))
+
+  const suggestions = result.products.map((p) => ({
+    id: p.id,
+    name: p.name,
+    category: p.category,
+    price: p.price,
+    oldPrice: p.oldPrice,
+    image: p.image,
+    vendor: vendors.get(p.vendorId)?.name || 'Unknown',
+  }))
+
+  res.json({ suggestions })
+})
+
 // GET /api/products - public; supports ?q=, ?category=, ?vendorId=, ?minPrice=, ?maxPrice=, ?minRating=, ?sort=, ?page=, ?limit=
 router.get('/', async (req, res) => {
   const { q, category, vendorId, minPrice, maxPrice, minRating, sort, page, limit } = req.query

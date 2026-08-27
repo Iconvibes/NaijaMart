@@ -73,6 +73,7 @@ export const api = {
     return request(`/products${qs ? `?${qs}` : ''}`)
   },
   product: (id) => request(`/products/${id}`),
+  productSuggestions: (q) => request(`/products/suggest?q=${encodeURIComponent(q)}`),
   createProduct: (payload) => request('/products', { method: 'POST', body: payload }),
   updateProduct: (id, payload) => request(`/products/${id}`, { method: 'PUT', body: payload }),
   deleteProduct: (id) => request(`/products/${id}`, { method: 'DELETE' }),
