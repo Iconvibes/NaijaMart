@@ -27,20 +27,27 @@ router.get('/suggest', async (req, res) => {
   const q = (req.query.q || '').trim()
   if (q.length < 2) return res.json({ suggestions: [] })
 
-  const result = await repo.findProducts({ q, limit: 8, approved: true })
+  const result = await repo.findProducts({ q, limit: 24, approved: true })
   const vendors = new Map((await repo.findVendors()).map((v) => [v.id, v]))
 
-  const suggestions = result.products.map((p) => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    price: p.price,
-    oldPrice: p.oldPrice,
-    image: p.image,
-    vendor: vendors.get(p.vendorId)?.name || 'Unknown',
-  }))
+  const seen = new Set()
+  const suggestions = []
+  for (const p of result.products) {
+    const key = p.name.trim().toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    suggestions.push({
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      price: p.price,
+      oldPrice: p.oldPrice,
+      image: p.image,
+      vendor: vendors.get(p.vendorId)?.name || 'Unknown',
+    })
+  }
 
-  res.json({ suggestions })
+  res.json({ suggestions: suggestions.slice(0, 8) })
 })
 
 // GET /api/products - public; supports ?q=, ?category=, ?vendorId=, ?minPrice=, ?maxPrice=, ?minRating=, ?sort=, ?page=, ?limit=
