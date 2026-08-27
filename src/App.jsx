@@ -36,6 +36,7 @@ import SitemapPage from './pages/static/SitemapPage'
 import AdvertisePage from './pages/static/AdvertisePage'
 import AffiliatePage from './pages/static/AffiliatePage'
 import ComingSoonApp from './pages/ComingSoonApp'
+import CustomerOrders from './pages/CustomerOrders'
 import VendorLayout from './pages/vendor/VendorLayout'
 import VendorProducts from './pages/vendor/VendorProducts'
 import VendorAddProduct from './pages/vendor/VendorAddProduct'
@@ -93,6 +94,7 @@ function AppRoutes() {
       <Route path="/checkout" element={<CheckoutPage />} />
       <Route path="/track-order" element={<OrderTrackingPage />} />
       <Route path="/account" element={<AccountPage />} />
+      <Route path="/account/orders" element={<CustomerOrders />} />
       <Route path="/notifications" element={<NotificationsPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

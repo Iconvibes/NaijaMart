@@ -134,7 +134,9 @@ router.get('/', requireAuth, async (req, res) => {
       orders: orders.map((o) => toVendorOrderView(o, req.user.id)),
     })
   }
-  return res.status(403).json({ message: 'Orders are only visible to vendors and admins' })
+  // Customers see their own orders linked by customerId
+  const orders = await repo.findOrders({ customerId: req.user.id, status })
+  return res.json({ orders })
 })
 
 // PATCH /api/orders/:id/status - admin only. Shipping the consolidated order

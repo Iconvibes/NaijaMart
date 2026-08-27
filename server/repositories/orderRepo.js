@@ -14,18 +14,23 @@ const orderRepo = {
     return toOrderObj({ ...doc.toObject(), id: doc._id })
   },
 
-  async findOrders({ vendorId, status } = {}) {
+  async findOrders({ vendorId, customerId, status } = {}) {
     if (isMemoryDb()) {
       let list = mem.orders
       if (vendorId) {
         const vid = String(vendorId)
         list = list.filter((o) => o.items.some((i) => String(i.vendorId) === vid))
       }
+      if (customerId) {
+        const cid = String(customerId)
+        list = list.filter((o) => String(o.customerId) === cid)
+      }
       if (status) list = list.filter((o) => o.status === status)
       return list.slice().reverse().map(toOrderObj)
     }
     const query = {}
     if (vendorId) query['items.vendorId'] = vendorId
+    if (customerId) query.customerId = customerId
     if (status) query.status = status
     const docs = await Order.find(query).sort({ createdAt: -1 })
     return docs.map((d) => toOrderObj({ ...d.toObject(), id: d._id }))

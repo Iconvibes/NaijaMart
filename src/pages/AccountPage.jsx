@@ -59,7 +59,14 @@ export default function AccountPage() {
       </h1>
 
       {/* quick links */}
-      <div className="grid sm:grid-cols-3 gap-3 mb-6">
+      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+        {user && (
+          <Link to="/account/orders" className="bg-white rounded-lg shadow-card p-4 hover:shadow-md transition-shadow">
+            <span className="text-2xl block mb-1">📋</span>
+            <p className="text-xs font-bold text-secondary">Order History</p>
+            <p className="text-[10px] text-gray-500">View past orders & reorder</p>
+          </Link>
+        )}
         <Link to="/shop" className="bg-white rounded-lg shadow-card p-4 hover:shadow-md transition-shadow">
           <span className="text-2xl block mb-1">🛍️</span>
           <p className="text-xs font-bold text-secondary">Continue Shopping</p>
