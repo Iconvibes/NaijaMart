@@ -22,9 +22,22 @@ export function initSocket(server) {
     },
   })
 
-  // Auth middleware: verify JWT on connection
+  // Auth middleware: verify JWT on connection.
+  // Reads from HttpOnly 'token' cookie first, falls back to auth.token for API clients.
   io.use((socket, next) => {
-    const token = socket.handshake.auth?.token
+    // Parse token from cookie header (polling transport sends cookies in handshake)
+    let token = null
+    const cookieHeader = socket.handshake.headers?.cookie || ''
+    for (const pair of cookieHeader.split(';')) {
+      const idx = pair.indexOf('=')
+      if (idx !== -1 && pair.slice(0, idx).trim() === 'token') {
+        token = pair.slice(idx + 1).trim()
+        break
+      }
+    }
+    // Fallback: auth.token for non-browser clients
+    if (!token) token = socket.handshake.auth?.token
+
     if (!token) return next(new Error('Authentication required'))
     try {
       const payload = jwt.verify(token, JWT_SECRET)

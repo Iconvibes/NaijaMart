@@ -4,14 +4,40 @@ import jwt from 'jsonwebtoken'
 import { repo } from '../store.js'
 import { JWT_SECRET, requireAuth, requireRole, publicUser } from '../middleware/auth.js'
 import { rateLimit } from '../middleware/rateLimit.js'
+import { setCookie, clearCookie, issueCsrfToken, clearCsrfToken } from '../middleware/csrf.js'
 
 const router = Router()
 
 // Rate limit login/register to prevent brute-force attacks
 const authRateLimit = rateLimit({ windowMs: 60_000, max: 15, message: 'Too many attempts, please wait a minute' })
 
+const JWT_MAX_AGE = 7 * 24 * 60 * 60 // 7 days in seconds
+
 const sign = (user) =>
   jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' })
+
+/** Set JWT in HttpOnly cookie and issue a CSRF token. */
+function setAuthCookies(res, user) {
+  const token = sign(user)
+  // HttpOnly cookie: JS cannot access this (XSS protection)
+  setCookie(res, 'token', token, { httpOnly: true, maxAge: JWT_MAX_AGE })
+  // CSRF synchronizer token: JS reads this cookie, sends it in x-csrf-token header
+  const csrfToken = issueCsrfToken(res)
+  return { token, csrfToken }
+}
+
+/** Clear all auth cookies. */
+function clearAuthCookies(res) {
+  clearCookie(res, 'token', { httpOnly: true })
+  clearCsrfToken(res)
+}
+
+// GET /api/auth/csrf-token - returns a fresh CSRF token and sets the cookie.
+// Frontend calls this on boot and after login/logout to stay in sync.
+router.get('/csrf-token', (req, res) => {
+  const csrfToken = issueCsrfToken(res)
+  res.json({ csrfToken })
+})
 
 // POST /api/auth/register - customers and vendors sign up (admin is seeded only)
 router.post('/register', authRateLimit, async (req, res) => {
@@ -35,7 +61,9 @@ router.post('/register', authRateLimit, async (req, res) => {
     if (whatsapp) data.whatsapp = whatsapp.trim()
   }
   const user = await repo.createUser(data)
-  res.status(201).json({ token: sign(user), user: publicUser(user) })
+  const { token, csrfToken } = setAuthCookies(res, user)
+  // Token in body for backward-compat API clients; cookie for browser clients
+  res.status(201).json({ token, csrfToken, user: publicUser(user) })
 })
 
 // POST /api/auth/login
@@ -45,7 +73,14 @@ router.post('/login', authRateLimit, async (req, res) => {
   if (!user || !(await bcrypt.compare(password || '', user.passwordHash))) {
     return res.status(401).json({ message: 'Invalid email or password' })
   }
-  res.json({ token: sign(user), user: publicUser(user) })
+  const { token, csrfToken } = setAuthCookies(res, user)
+  res.json({ token, csrfToken, user: publicUser(user) })
+})
+
+// POST /api/auth/logout - clears JWT cookie and CSRF cookie
+router.post('/logout', (req, res) => {
+  clearAuthCookies(res)
+  res.json({ message: 'Logged out' })
 })
 
 // GET /api/auth/me - re-validates the token and returns the current user

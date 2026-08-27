@@ -6,12 +6,12 @@ import { useAuth } from '../context/useAuth'
 let socket = null
 
 export function useSocket() {
-  const { user, token } = useAuth()
+  const { user } = useAuth()
   const [connected, setConnected] = useState(false)
   const [lastNotification, setLastNotification] = useState(null)
 
   useEffect(() => {
-    if (!user || !token) {
+    if (!user) {
       if (socket) {
         socket.disconnect()
         socket = null
@@ -21,8 +21,10 @@ export function useSocket() {
 
     if (socket?.connected) return
 
+    // Use withCredentials to send HttpOnly JWT cookie with the handshake.
+    // The server reads the token from the cookie header.
     socket = io(window.location.origin, {
-      auth: { token },
+      withCredentials: true,
       transports: ['websocket', 'polling'],
     })
 
@@ -43,7 +45,7 @@ export function useSocket() {
         socket = null
       }
     }
-  }, [user, token])
+  }, [user])
 
   return { connected, lastNotification }
 }

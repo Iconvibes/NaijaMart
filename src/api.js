@@ -1,14 +1,32 @@
+// ─── CSRF Token Management ───────────────────────────────────────────────────
+// The CSRF synchronizer token is stored in a readable (non-HttpOnly) cookie
+// named '_csrf'. JS reads it via document.cookie and sends it in the
+// x-csrf-token header on state-changing requests.
+
+const CSRF_COOKIE = '_csrf'
+
+function getCsrfToken() {
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE}=([^;]*)`))
+  return match ? decodeURIComponent(match[1]) : null
+}
+
+// ─── API Client ──────────────────────────────────────────────────────────────
+
 const API_BASE = '/api'
 
 async function request(path, { method = 'GET', body, formData } = {}) {
-  const token = localStorage.getItem('naijamart_token')
   const isForm = formData instanceof FormData
+  const isStateChanging = method !== 'GET' && method !== 'HEAD'
+  const csrfToken = isStateChanging ? getCsrfToken() : null
+
+  const headers = {}
+  if (!isForm) headers['Content-Type'] = 'application/json'
+  if (csrfToken) headers['x-csrf-token'] = csrfToken
+
   const res = await fetch(`${API_BASE}${path}`, {
     method,
-    headers: {
-      ...(isForm ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers,
+    credentials: 'include', // send HttpOnly cookies with every request
     body: isForm ? formData : body ? JSON.stringify(body) : undefined,
   })
   const data = await res.json().catch(() => ({}))
@@ -20,10 +38,21 @@ async function request(path, { method = 'GET', body, formData } = {}) {
   return data
 }
 
+/**
+ * Fetch a fresh CSRF token from the server.
+ * Called on app boot and after login/logout to keep the _csrf cookie in sync.
+ */
+export async function fetchCsrfToken() {
+  const res = await fetch(`${API_BASE}/auth/csrf-token`, { credentials: 'include' })
+  const data = await res.json().catch(() => ({}))
+  return data.csrfToken
+}
+
 export const api = {
   // ---- Auth ----
   login: (email, password) => request('/auth/login', { method: 'POST', body: { email, password } }),
   register: (payload) => request('/auth/register', { method: 'POST', body: payload }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
   me: () => request('/auth/me'),
   updateMe: (payload) => request('/auth/me', { method: 'PATCH', body: payload }),
   users: () => request('/auth/users'),

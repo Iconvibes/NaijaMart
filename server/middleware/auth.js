@@ -1,12 +1,20 @@
 import jwt from 'jsonwebtoken'
 import { repo } from '../store.js'
+import { parseCookies } from './csrf.js'
 
 export const JWT_SECRET = process.env.JWT_SECRET || 'naijamart-dev-secret'
 
-// Verifies the Bearer token and loads the user into req.user
+// Verifies the JWT and loads the user into req.user.
+// Reads the token from the HttpOnly 'token' cookie first,
+// falling back to the Authorization: Bearer header for API clients.
 export async function requireAuth(req, res, next) {
-  const header = req.headers.authorization || ''
-  const token = header.startsWith('Bearer ') ? header.slice(7) : null
+  const cookies = parseCookies(req)
+  const cookieToken = cookies['token']
+  const headerToken = (req.headers.authorization || '').startsWith('Bearer ')
+    ? req.headers.authorization.slice(7)
+    : null
+  const token = cookieToken || headerToken
+
   if (!token) return res.status(401).json({ message: 'Please log in to continue' })
 
   try {

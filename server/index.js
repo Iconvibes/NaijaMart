@@ -24,6 +24,7 @@ import analyticsRoutes from './routes/analytics.js'
 import aiRoutes from './routes/ai.js'
 import { initSocket } from './services/realtime.js'
 import { circuits, getDeadLetters } from './lib/resilience.js'
+import { validateCsrf } from './middleware/csrf.js'
 
 const uploadsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'uploads')
 
@@ -72,6 +73,7 @@ app.use(cors({
     callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
 }))
 app.use(express.json({ limit: '10mb' }))
 
@@ -105,6 +107,19 @@ app.get('/api/health', async (req, res) => {
     memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
     dependencies: deps,
   })
+})
+
+// CSRF protection: validate x-csrf-token on state-changing API requests.
+// Exempt POST /api/auth/login, POST /api/auth/register (no cookie yet),
+// GET /api/auth/csrf-token (safe method), and health check.
+app.use('/api', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') {
+    return next()
+  }
+  if (req.originalUrl === '/api/auth/login' || req.originalUrl === '/api/auth/register') {
+    return next()
+  }
+  validateCsrf(req, res, next)
 })
 
 app.use('/api/auth', authRoutes)

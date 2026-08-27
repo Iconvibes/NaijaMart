@@ -44,8 +44,8 @@ export default function VendorSettings() {
         payload.newPassword = newPassword
       }
       const { user: updated } = await api.updateMe(payload)
-      // Update stored user data
-      localStorage.setItem('naijamart_user', JSON.stringify(updated))
+      // Note: user state will be refreshed on next /me call.
+      // No localStorage write needed — JWT lives in HttpOnly cookie.
       setSuccess('Profile updated successfully')
       setCurrentPassword('')
       setNewPassword('')
