@@ -1,9 +1,11 @@
-import { useCallback, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { api } from '../api'
 import { useAsync } from '../hooks/useAsync'
 import { formatNaira } from '../data/catalog'
 import { CheckIcon, ChevronDownIcon, MapPinIcon, PhoneIcon, TrashIcon, TruckIcon } from '../components/Icons'
+
+const HealthMetrics = lazy(() => import('../components/HealthMetrics'))
 
 const paymentBadge = (status) =>
   ({ pending: 'bg-gray-100 text-gray-500', captured: 'bg-accent/10 text-accent', refunded: 'bg-danger/10 text-danger' })[status] ||
@@ -56,6 +58,7 @@ export default function AdminDashboard() {
   const [actionError, setActionError] = useState('')
   const [expanded, setExpanded] = useState(null)
   const [payoutNote, setPayoutNote] = useState('')
+  const [showMetrics, setShowMetrics] = useState(true)
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete product "${name}"? This cannot be undone.`)) return
@@ -162,6 +165,27 @@ export default function AdminDashboard() {
           {error?.message || deleteError || actionError}
         </p>
       )}
+
+      {/* ---- health metrics ---- */}
+      <div className="mt-4">
+        <button
+          onClick={() => setShowMetrics(!showMetrics)}
+          className="w-full bg-white rounded-lg shadow-card px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        >
+          <div>
+            <h2 className="text-sm font-black text-secondary uppercase tracking-wide">Health Metrics</h2>
+            <p className="text-[11px] text-gray-500 mt-0.5">Revenue, order volume, and vendor performance over time</p>
+          </div>
+          <ChevronDownIcon className={`w-5 h-5 text-gray-400 transition-transform ${showMetrics ? 'rotate-180' : ''}`} />
+        </button>
+        {showMetrics && (
+          <div className="mt-3">
+            <Suspense fallback={<div className="bg-white rounded-lg shadow-card p-6 text-center text-xs text-gray-500">Loading charts...</div>}>
+              <HealthMetrics />
+            </Suspense>
+          </div>
+        )}
+      </div>
 
       {/* ---- order collation ---- */}
       <div className="mt-4 bg-white rounded-lg shadow-card overflow-hidden">

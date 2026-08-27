@@ -14,7 +14,7 @@ router.get('/vendor', requireAuth, requireRole('vendor'), async (req, res) => {
 // GET /api/analytics/admin - platform-wide analytics
 router.get('/admin', requireAuth, requireRole('admin'), async (req, res) => {
   const days = Number(req.query.days) || 30
-  const analytics = await repo.getAdminAnalytics(days)
+  const analytics = await repo.getAdminAnalyticsAggregated(days)
   res.json(analytics)
 })
 
