@@ -42,6 +42,9 @@ const orderSchema = new mongoose.Schema(
       method: { type: String, enum: ['card', 'transfer', 'cod'], default: 'cod' },
       status: { type: String, enum: ['pending', 'captured', 'refunded'], default: 'pending' },
       amount: { type: Number, default: 0 },
+      // Provider reference for card/transfer payments. Used for idempotent
+      // verification and webhook matching. null for COD orders.
+      reference: { type: String, default: null, unique: true, sparse: true },
       capturedAt: { type: Date, default: null },
     },
     status: {

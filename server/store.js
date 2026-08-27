@@ -92,6 +92,7 @@ const toOrderObj = (o) => ({
     method: o.payment?.method || 'cod',
     status: o.payment?.status || 'pending',
     amount: o.payment?.amount ?? o.total,
+    reference: o.payment?.reference || null,
     capturedAt: o.payment?.capturedAt || null,
   },
   status: o.status,

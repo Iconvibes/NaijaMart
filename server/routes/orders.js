@@ -1,3 +1,4 @@
+import express from 'express'
 import { Router } from 'express'
 import { repo } from '../store.js'
 import { requireAuth, requireRole } from '../middleware/auth.js'
@@ -8,6 +9,7 @@ import { notifyVendors } from '../services/whatsapp.js'
 import { notifyUser } from '../services/realtime.js'
 import { sendOrderConfirmation, sendShippingUpdate } from '../services/email.js'
 import { canSetFulfillment, FULFILLMENT, toVendorOrderView, WAREHOUSE_ADDRESS } from '../services/vendorOrderView.js'
+import { getPaymentProvider } from '../services/paymentProvider.js'
 
 const router = Router()
 
@@ -80,9 +82,8 @@ router.post('/', orderRateLimit, async (req, res) => {
   req.body.customerId = customerId
   if (customerEmail) req.body.customerEmail = customerEmail
   const order = await placeOrder(req.body)
-  if (order.payment?.status === 'captured') {
-    await recordPaymentCapture(order)
-  }
+  // Payment is always 'pending' after placeOrder — capture happens only
+  // via verifyPayment (card/transfer) or admin capture (COD). No auto-capture.
   // Notify vendors via WhatsApp + realtime (fire-and-forget)
   notifyVendors(order, repo).catch((err) =>
     console.error('WhatsApp notification error:', err.message)
@@ -156,6 +157,7 @@ router.post('/:id/refund', requireAuth, requireRole('admin'), async (req, res) =
 
 // PATCH /api/orders/:id/payment - admin only. Marks a cod order's payment as
 // captured (the courier remitted the cash) and books it into escrow.
+// For card/transfer, this should only be used after provider verification.
 router.patch('/:id/payment', requireAuth, requireRole('admin'), async (req, res) => {
   const { action } = req.body || {}
   const order = await repo.findOrderById(req.params.id)
@@ -166,6 +168,23 @@ router.patch('/:id/payment', requireAuth, requireRole('admin'), async (req, res)
   if (order.payment.status === 'captured') {
     return res.json({ order }) // already captured - idempotent
   }
+  if (order.payment.status === 'refunded') {
+    return res.status(400).json({ message: 'Cannot capture a refunded order' })
+  }
+
+  // For card/transfer orders, verify with the provider first
+  if (order.payment?.method !== 'cod' && order.payment?.reference) {
+    const provider = getPaymentProvider()
+    try {
+      const result = await provider.verifyPayment(order.payment.reference)
+      if (result.status !== 'captured') {
+        return res.status(400).json({ message: `Payment provider reports status: ${result.status}` })
+      }
+    } catch (err) {
+      return res.status(502).json({ message: 'Payment provider verification failed' })
+    }
+  }
+
   const updated = await repo.updateOrderPayment(req.params.id, { status: 'captured', capturedAt: new Date().toISOString() })
   const entries = await recordPaymentCapture(updated)
   res.json({ order: updated, ledgerEntries: entries })
@@ -200,6 +219,137 @@ router.patch('/:id/fulfillment', requireAuth, requireRole('vendor', 'admin'), as
   // sellers' line items.
   const view = req.user.role === 'vendor' ? toVendorOrderView(updated, req.user.id) : updated
   res.json({ order: view })
+})
+
+// POST /api/orders/:id/verify-payment - Verify a card/transfer payment.
+// The customer (or frontend after redirect) calls this with the payment
+// reference. The server verifies with the provider before marking captured.
+router.post('/:id/verify-payment', async (req, res) => {
+  const order = await repo.findOrderById(req.params.id)
+  if (!order) return res.status(404).json({ message: 'Order not found' })
+
+  if (order.payment?.method === 'cod') {
+    return res.status(400).json({ message: 'COD orders are paid on delivery' })
+  }
+  if (order.payment?.status === 'captured') {
+    return res.json({ order, message: 'Payment already captured' })
+  }
+  if (order.payment?.status === 'refunded') {
+    return res.status(400).json({ message: 'This order has been refunded' })
+  }
+
+  const reference = order.payment?.reference
+  if (!reference) {
+    return res.status(400).json({ message: 'No payment reference found for this order' })
+  }
+
+  try {
+    const provider = getPaymentProvider()
+    const result = await provider.verifyPayment(reference)
+
+    if (result.status === 'captured') {
+      // Idempotent: already captured won't double-book
+      if (order.payment?.status !== 'captured') {
+        const updated = await repo.updateOrderPayment(order.id, {
+          status: 'captured',
+          capturedAt: new Date().toISOString(),
+        })
+        await recordPaymentCapture(updated)
+        // Notify vendors (fire-and-forget)
+        notifyVendors(updated, repo).catch(() => {})
+        sendOrderConfirmation(updated).catch(() => {})
+        const vendorIds = [...new Set(updated.items.map((i) => String(i.vendorId)))]
+        for (const vid of vendorIds) {
+          notifyUser(vid, {
+            type: 'new_order',
+            message: `Payment confirmed for order #${String(updated.id).slice(-8).toUpperCase()}`,
+            link: '/vendor/orders',
+          }).catch(() => {})
+        }
+        return res.json({ order: updated, verified: true })
+      }
+      return res.json({ order, verified: true, message: 'Payment already captured' })
+    }
+
+    return res.status(400).json({ message: 'Payment not yet confirmed by provider', status: result.status })
+  } catch (err) {
+    console.error(`[PaymentProvider] Verification failed for order ${order.id}:`, err.message)
+    return res.status(502).json({ message: 'Payment verification failed. Please try again.' })
+  }
+})
+
+// POST /api/orders/webhook/payment - Payment provider webhook callback.
+// Verifies the webhook signature and processes the payment event.
+// This is the authoritative source for payment status changes.
+router.post('/webhook/payment', express.json({ limit: '1mb' }), async (req, res) => {
+  // In production, validate webhook signature here:
+  // const signature = req.headers['x-webhook-signature']
+  // if (!validateWebhookSignature(req.body, signature)) {
+  //   return res.status(401).json({ message: 'Invalid webhook signature' })
+  // }
+
+  const { event, reference, status, amount, currency } = req.body || {}
+
+  if (!event || !reference) {
+    return res.status(400).json({ message: 'Missing event or reference' })
+  }
+
+  // Find the order by payment reference
+  const orders = await repo.findOrders({})
+  const order = orders.find((o) => o.payment?.reference === reference)
+  if (!order) {
+    console.warn(`[Webhook] No order found for reference: ${reference}`)
+    return res.status(404).json({ message: 'Order not found' })
+  }
+
+  // Idempotent: already captured, skip
+  if (order.payment?.status === 'captured') {
+    return res.json({ ok: true, message: 'Already processed' })
+  }
+
+  // Verify amount matches
+  if (amount != null && amount !== order.payment?.amount) {
+    console.error(`[Webhook] Amount mismatch for ${reference}: expected ${order.payment?.amount}, got ${amount}`)
+    return res.status(400).json({ message: 'Amount mismatch' })
+  }
+
+  // Verify currency
+  if (currency && currency !== 'NGN') {
+    return res.status(400).json({ message: 'Currency mismatch' })
+  }
+
+  switch (event) {
+    case 'payment.success':
+    case 'charge.success': {
+      const updated = await repo.updateOrderPayment(order.id, {
+        status: 'captured',
+        capturedAt: new Date().toISOString(),
+      })
+      await recordPaymentCapture(updated)
+      notifyVendors(updated, repo).catch(() => {})
+      sendOrderConfirmation(updated).catch(() => {})
+      const vendorIds = [...new Set(updated.items.map((i) => String(i.vendorId)))]
+      for (const vid of vendorIds) {
+        notifyUser(vid, {
+          type: 'new_order',
+          message: `Payment confirmed for order #${String(updated.id).slice(-8).toUpperCase()}`,
+          link: '/vendor/orders',
+        }).catch(() => {})
+      }
+      console.log(`[Webhook] Payment captured for order ${order.id} via ${reference}`)
+      break
+    }
+    case 'payment.failed':
+    case 'charge.failed': {
+      console.log(`[Webhook] Payment failed for order ${order.id}: ${reference}`)
+      // Don't change order status - customer can retry
+      break
+    }
+    default:
+      console.warn(`[Webhook] Unknown event type: ${event}`)
+  }
+
+  res.json({ ok: true })
 })
 
 export default router

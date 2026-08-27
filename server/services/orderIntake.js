@@ -1,5 +1,6 @@
 import { repo } from '../store.js'
 import { ValidationError } from '../lib/errors.js'
+import { initialPaymentStatus, generatePaymentReference, isValidPaymentMethod, getPaymentProvider } from './paymentProvider.js'
 
 // Deep module: the entire Order intake use case. The HTTP route stays a thin
 // adapter and tests hit this interface directly. Prices and vendor attribution
@@ -107,9 +108,14 @@ export async function placeOrder({ customerName, customerEmail, customerPhone, c
   }
 
   const finalTotal = Math.max(0, total - discountAmount)
-  const captured = method !== 'cod'
 
-  return repo.createOrder({
+  // All payment methods start as 'pending'. No client-side auto-capture.
+  // Card/transfer are confirmed only via verifyPayment() or webhook.
+  // COD stays pending until admin manually captures after courier remits.
+  const paymentStatus = initialPaymentStatus(method)
+  const paymentReference = method !== 'cod' ? generatePaymentReference('pending') : null
+
+  const order = await repo.createOrder({
     customerName: String(customerName).trim(),
     customerEmail: customerEmail ? String(customerEmail).trim() : null,
     customerPhone: String(customerPhone).trim(),
@@ -122,9 +128,30 @@ export async function placeOrder({ customerName, customerEmail, customerPhone, c
     status: 'pending',
     payment: {
       method,
-      status: captured ? 'captured' : 'pending',
+      status: paymentStatus,
       amount: finalTotal,
-      capturedAt: captured ? new Date().toISOString() : null,
+      reference: paymentReference,
+      capturedAt: null,
     },
   })
+
+  // Initialize payment with the provider (card/transfer only)
+  if (method !== 'cod' && paymentReference) {
+    const provider = getPaymentProvider()
+    try {
+      await provider.initializePayment({
+        reference: paymentReference,
+        amount: finalTotal,
+        currency: 'NGN',
+        orderId: order.id,
+        metadata: { customerId: customerId || 'guest', customerEmail },
+      })
+    } catch (err) {
+      console.error(`[PaymentProvider] Initialization failed for order ${order.id}:`, err.message)
+      // Payment initialization failed but order is created as pending.
+      // Customer can retry payment or choose COD.
+    }
+  }
+
+  return order
 }

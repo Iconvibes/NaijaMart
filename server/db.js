@@ -12,11 +12,21 @@ export async function connectDb() {
   if (process.env.MONGO_URI && !process.env.MONGODB_URI) {
     console.warn('⚠  MONGO_URI is deprecated — rename it to MONGODB_URI in your .env file.')
   }
+
+  const isProduction = process.env.NODE_ENV === 'production'
+
   try {
-    await mongoose.connect(uri, { serverSelectionTimeoutMS: 2500 })
+    await mongoose.connect(uri, { serverSelectionTimeoutMS: 5000 })
     mode = 'mongo'
-    console.log(`MongoDB connected: ${uri}`)
+    console.log(`MongoDB connected: ${uri.replace(/\/[^/]+@/, '/***@')}`) // Don't log credentials
   } catch (err) {
+    if (isProduction) {
+      console.error('\n\x1b[31m⚠  FATAL: MongoDB is unavailable in production.\x1b[0m')
+      console.error(`   Connection error: ${err.message}`)
+      console.error('   Set MONGODB_URI and ensure MongoDB is running.')
+      console.error('   Refusing to start with in-memory store in production.\n')
+      process.exit(1)
+    }
     mode = 'memory'
     console.warn(`MongoDB unreachable (${err.message}). Running with an in-memory store - set MONGODB_URI for persistence.`)
   }

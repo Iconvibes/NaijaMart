@@ -31,6 +31,12 @@ const emailFor = (name) => `${name.toLowerCase().replace(/[^a-z0-9]+/g, '.')}@na
 // Seeds the database once: 1 admin + 5 vendors + all catalog products.
 // Demo logins: admin@naijamart.com / admin123, <vendor>@naijamart.com / vendor123
 export async function seedIfEmpty() {
+  // Never seed in production
+  if (process.env.NODE_ENV === 'production') {
+    console.log('Skipping seed — production environment')
+    return
+  }
+  // Never seed if data already exists
   if ((await repo.countUsers()) > 0) return
 
   const adminHash = await bcrypt.hash('admin123', 10)
