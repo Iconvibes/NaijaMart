@@ -46,8 +46,22 @@ const app = express()
 
 // Security headers via helmet (CSP, HSTS, X-Frame-Options, etc.)
 app.use(helmet({
-  contentSecurityPolicy: false, // disable until we can audit inline scripts + external assets
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Tailwind uses inline styles
+      imgSrc: ["'self'", 'data:', 'blob:', 'https:'], // product images may be external URLs
+      fontSrc: ["'self'"],
+      connectSrc: ["'self'", 'ws:', 'wss:'], // Socket.io WebSocket
+      frameAncestors: ["'none'"],
+      formAction: ["'self'"],
+    },
+  },
   crossOriginEmbedderPolicy: false, // blocks cross-origin images which would break product images
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+  frameguard: { action: 'deny' },
 }))
 
 app.use(cors({

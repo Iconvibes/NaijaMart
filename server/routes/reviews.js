@@ -15,9 +15,20 @@ router.post('/', requireAuth, reviewRateLimit, async (req, res) => {
   if (!orderId || !productId || !rating) {
     return res.status(400).json({ message: 'orderId, productId, and rating are required' })
   }
-  if (rating < 1 || rating > 5) {
-    return res.status(400).json({ message: 'Rating must be between 1 and 5' })
+  if (rating < 1 || rating > 5 || !Number.isInteger(Number(rating))) {
+    return res.status(400).json({ message: 'Rating must be an integer between 1 and 5' })
   }
+  // Validate input lengths to prevent abuse
+  const reviewTitle = String(title || '').trim()
+  const reviewText = String(text || '').trim()
+  if (reviewTitle.length > 200) {
+    return res.status(400).json({ message: 'Review title must be 200 characters or less' })
+  }
+  if (reviewText.length > 5000) {
+    return res.status(400).json({ message: 'Review text must be 5000 characters or less' })
+  }
+  // Validate images - only allow /uploads/ paths
+  const safeImages = Array.isArray(images) ? images.filter((img) => typeof img === 'string' && img.startsWith('/uploads/')).slice(0, 5) : []
 
   // Verify the order exists, belongs to this customer, and is delivered
   const order = await repo.findOrderById(orderId)
@@ -50,9 +61,9 @@ router.post('/', requireAuth, reviewRateLimit, async (req, res) => {
     vendorId: orderItem.vendorId,
     customerId: req.user.id,
     rating: Number(rating),
-    title: String(title || '').trim(),
-    text: String(text || '').trim(),
-    images: Array.isArray(images) ? images : [],
+    title: reviewTitle,
+    text: reviewText,
+    images: safeImages,
     isVerifiedPurchase: true,
   })
 
