@@ -1157,4 +1157,81 @@ export const repo = {
       statusCounts,
     }
   },
+
+  // MongoDB aggregation-based analytics (used when MongoDB is available)
+  // Falls back to the in-memory method above for non-Mongo environments.
+  async getAdminAnalyticsAggregated(days = 30) {
+    if (isMemoryDb()) return this.getAdminAnalytics(days)
+
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+
+    // Run aggregation pipelines in parallel
+    const [statusResult, gmvResult, vendorResult, userCounts] = await Promise.all([
+      // Status counts
+      Order.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      // Daily GMV
+      Order.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            gmv: { $sum: '$total' },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      // Top vendors by revenue
+      Order.aggregate([
+        { $match: { createdAt: { $gte: since } } },
+        { $unwind: '$items' },
+        {
+          $group: {
+            _id: '$items.vendorId',
+            revenue: { $sum: { $multiply: ['$items.price', '$items.qty'] } },
+          },
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 10 },
+      ]),
+      // User counts
+      User.aggregate([
+        { $group: { _id: '$role', count: { $sum: 1 } } },
+      ]),
+    ])
+
+    const statusCounts = { pending: 0, processing: 0, shipped: 0, delivered: 0, cancelled: 0 }
+    for (const s of statusResult) {
+      if (s._id in statusCounts) statusCounts[s._id] = s.count
+    }
+
+    let totalCommission = 0
+    const vendorRevenue = {}
+    for (const v of vendorResult) {
+      vendorRevenue[String(v._id)] = v.revenue
+      totalCommission += Math.round(v.revenue * 0.1)
+    }
+
+    let gmv = 0
+    const gmvData = gmvResult.map((d) => {
+      gmv += d.gmv
+      return { date: d._id, gmv: d.gmv }
+    })
+
+    const userMap = {}
+    for (const u of userCounts) userMap[u._id] = u.count
+
+    return {
+      gmv,
+      totalCommission,
+      totalOrders: statusResult.reduce((s, r) => s + r.count, 0),
+      totalVendors: userMap.vendor || 0,
+      totalCustomers: userMap.customer || 0,
+      topVendors: vendorResult.map((v) => ({ vendorId: String(v._id), revenue: v.revenue })),
+      gmvData,
+      statusCounts,
+    }
+  },
 }
