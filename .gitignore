@@ -1,17 +1,22 @@
 # Logs
 logs
 *.log
+*.log.err
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build output
 node_modules
 dist
-.freebuff
 dist-ssr
 *.local
+
+# Freebuff tooling (sessions, logs, temp scripts)
+.freebuff*
+.freebuff/
 
 # Environment files (NEVER commit)
 .env
@@ -21,13 +26,16 @@ dist-ssr
 # Personal interview docs (not for repo)
 docs/INTERVIEW-PORTFOLIO.md
 
-# Editor directories and files
+# OS / Editor
 .vscode/*
 !.vscode/extensions.json
 .idea
 .DS_Store
+Thumbs.db
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+*.tmp
+*.bak
