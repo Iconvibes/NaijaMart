@@ -116,11 +116,13 @@ export async function placeOrder({ customerName, customerEmail, customerPhone, c
 
   let total = lineItems.reduce((sum, i) => sum + i.price * i.qty, 0)
   let discountAmount = 0
+  let couponReserved = null // track for rollback on failure
 
   // Validate and atomically reserve coupon
   if (couponCode) {
     const result = await validateAndReserveCoupon(couponCode, total)
     discountAmount = result.discount
+    couponReserved = result.coupon
   }
 
   const finalTotal = Math.max(0, total - discountAmount)
@@ -131,25 +133,42 @@ export async function placeOrder({ customerName, customerEmail, customerPhone, c
   const paymentStatus = initialPaymentStatus(method)
   const paymentReference = method !== 'cod' ? generatePaymentReference('pending') : null
 
-  const order = await repo.createOrder({
-    customerName: String(customerName).trim(),
-    customerEmail: customerEmail ? String(customerEmail).trim() : null,
-    customerPhone: String(customerPhone).trim(),
-    customerAddress: String(customerAddress).trim(),
-    customerId: customerId || null,
-    items: lineItems,
-    total: finalTotal,
-    couponCode: couponCode || null,
-    discountAmount,
-    status: 'pending',
-    payment: {
-      method,
-      status: paymentStatus,
-      amount: finalTotal,
-      reference: paymentReference,
-      capturedAt: null,
-    },
-  })
+  let order
+  try {
+    order = await repo.createOrder({
+      customerName: String(customerName).trim(),
+      customerEmail: customerEmail ? String(customerEmail).trim() : null,
+      customerPhone: String(customerPhone).trim(),
+      customerAddress: String(customerAddress).trim(),
+      customerId: customerId || null,
+      items: lineItems,
+      total: finalTotal,
+      couponCode: couponCode || null,
+      discountAmount,
+      status: 'pending',
+      payment: {
+        method,
+        status: paymentStatus,
+        amount: finalTotal,
+        reference: paymentReference,
+        capturedAt: null,
+      },
+    })
+  } catch (err) {
+    // Order creation failed — compensate by rolling back coupon reservation
+    // and stock reservations so the coupon isn't permanently consumed.
+    if (couponReserved) {
+      await repo.decrementCouponUsage(couponReserved.id).catch(() => {
+        console.error(`[OrderIntake] Failed to roll back coupon ${couponReserved.code} usage`)
+      })
+    }
+    for (const res of stockReservations) {
+      await repo.restoreStock(res.productId, res.qty).catch(() => {
+        console.error(`[OrderIntake] Failed to restore stock for product ${res.productId}`)
+      })
+    }
+    throw err
+  }
 
   // Initialize payment with the provider (card/transfer only)
   if (method !== 'cod' && paymentReference) {

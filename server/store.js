@@ -874,6 +874,21 @@ export const repo = {
     return doc ? toCouponObj({ ...doc.toObject(), id: doc._id }) : null
   },
 
+  // Compensating operation: decrement coupon usage (rollback on failed order)
+  async decrementCouponUsage(id) {
+    if (isMemoryDb()) {
+      const c = mem.coupons.find((x) => String(x.id) === String(id))
+      if (c) c.usedCount = Math.max(0, (c.usedCount || 0) - 1)
+      return c ? toCouponObj(c) : null
+    }
+    const doc = await Coupon.findByIdAndUpdate(
+      id,
+      { $inc: { usedCount: -1 }, $min: { usedCount: 0 } }, // never go below 0
+      { new: true }
+    )
+    return doc ? toCouponObj({ ...doc.toObject(), id: doc._id }) : null
+  },
+
   // Compare-and-swap increment: only increments if usedCount still matches
   // the expected value. Returns the updated doc on success, null on CAS failure.
   // Prevents two concurrent checkouts from overspending a coupon's maxUses.
