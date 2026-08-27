@@ -5,6 +5,7 @@ import { useAuth } from '../context/useAuth'
 import { useAsync } from '../hooks/useAsync'
 
 import ProductCard from '../components/ProductCard'
+import SEOHead, { breadcrumbStructuredData } from '../components/SEOHead'
 
 const StarIcon = ({ className = 'w-4 h-4' }) => (
   <svg className={className} viewBox="0 0 20 20" fill="currentColor">
@@ -54,6 +55,18 @@ export default function StorePage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 mt-4 mb-10">
+      <SEOHead
+        title={`${vendor.name} — Store on NaijaMart`}
+        description={vendor.bio || `${vendor.name} — verified seller on NaijaMart with ${products.length} products`}
+        canonical={`/store/${vendor.slug}`}
+        image={vendor.banner || vendor.logo}
+        type="profile"
+        structuredData={breadcrumbStructuredData([
+          { name: 'Home', url: '/' },
+          { name: 'Store', url: '/shop' },
+          { name: vendor.name },
+        ])}
+      />
       {/* Banner */}
       <div className="bg-white rounded-lg shadow-card overflow-hidden">
         {vendor.banner ? (

@@ -6,6 +6,7 @@ import { productSource } from '../productSource'
 import ProductCard from '../components/ProductCard'
 import { ProductCardSkeleton } from '../components/Skeleton'
 import { ChevronDownIcon } from '../components/Icons'
+import SEOHead, { breadcrumbStructuredData } from '../components/SEOHead'
 
 const aspects = ['aspect-[4/5]', 'aspect-[5/6]', 'aspect-[4/5]', 'aspect-[1/1]', 'aspect-[5/6]', 'aspect-[4/5]', 'aspect-[1/1]', 'aspect-[4/5]']
 
@@ -105,6 +106,17 @@ export default function ListingPage({ mode = 'category' }) {
 
   return (
     <div className="max-w-7xl mx-auto px-4 mt-4">
+      <SEOHead
+        title={title}
+        description={category ? `${category.name} — shop ${filtered.length} products on NaijaMart, Nigeria's online marketplace` : `${title} on NaijaMart`}
+        canonical={mode === 'category' && category ? `/category/${category.slug}` : mode === 'deals' ? '/deals' : '/shop'}
+        type="website"
+        structuredData={mode === 'category' && category ? breadcrumbStructuredData([
+          { name: 'Home', url: '/' },
+          { name: 'Categories', url: '/shop' },
+          { name: category.name },
+        ]) : undefined}
+      />
       {/* breadcrumb */}
       <nav className="text-[11px] text-gray-500 mb-3" aria-label="Breadcrumb">
         <Link to="/" className="hover:text-primary">Home</Link>

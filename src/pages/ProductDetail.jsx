@@ -6,6 +6,7 @@ import { useAsync } from '../hooks/useAsync'
 import { categories, formatNaira, getCategoryBySlug } from '../data/catalog'
 import { Stars } from '../components/ProductCard'
 import { CartIcon, ShieldIcon, TruckIcon, MinusIcon, PlusIcon } from '../components/Icons'
+import SEOHead, { productStructuredData, breadcrumbStructuredData } from '../components/SEOHead'
 
 // Keyed on the route id so navigating between products remounts the page:
 // qty and the selected thumbnail reset with no effect-driven state copying.
@@ -70,6 +71,14 @@ export default function ProductDetail() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 mt-4 mb-10">
+      <SEOHead
+        title={product.name}
+        description={product.description || `${product.name} - ${product.category} from ${product.vendor} on NaijaMart`}
+        canonical={`/product/${product.id}`}
+        image={product.image}
+        type="product"
+        structuredData={productStructuredData({ ...product, vendor: product.vendor })}
+      />
       {/* breadcrumb */}
       <nav className="text-[11px] text-gray-500 mb-3" aria-label="Breadcrumb">
         <Link to="/" className="hover:text-primary">Home</Link>
