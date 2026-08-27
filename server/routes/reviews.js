@@ -81,17 +81,24 @@ router.post('/', requireAuth, reviewRateLimit, async (req, res) => {
   res.status(201).json({ review })
 })
 
-// GET /api/reviews/product/:productId - reviews for a product
+// GET /api/reviews/product/:productId - reviews for a product (paginated)
 router.get('/product/:productId', async (req, res) => {
-  const { sort } = req.query
-  const reviews = await repo.findReviews({ productId: req.params.productId, sort })
-  res.json({ reviews })
+  const { sort, page, limit } = req.query
+  const pageNum = Math.max(1, Number(page) || 1)
+  const limitNum = Math.min(50, Math.max(1, Number(limit) || 20))
+  const reviews = await repo.findReviews({ productId: req.params.productId, sort, page: pageNum, limit: limitNum })
+  const total = await repo.countReviews({ productId: req.params.productId })
+  res.json({ reviews, total, page: pageNum, limit: limitNum })
 })
 
-// GET /api/reviews/vendor/:vendorId - reviews for a vendor
+// GET /api/reviews/vendor/:vendorId - reviews for a vendor (paginated)
 router.get('/vendor/:vendorId', async (req, res) => {
-  const reviews = await repo.findReviews({ vendorId: req.params.vendorId, sort: 'newest' })
-  res.json({ reviews })
+  const { page, limit } = req.query
+  const pageNum = Math.max(1, Number(page) || 1)
+  const limitNum = Math.min(50, Math.max(1, Number(limit) || 20))
+  const reviews = await repo.findReviews({ vendorId: req.params.vendorId, sort: 'newest', page: pageNum, limit: limitNum })
+  const total = await repo.countReviews({ vendorId: req.params.vendorId })
+  res.json({ reviews, total, page: pageNum, limit: limitNum })
 })
 
 // POST /api/reviews/:id/helpful - increment helpful count

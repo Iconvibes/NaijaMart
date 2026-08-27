@@ -4,14 +4,22 @@ import { requireAuth } from '../middleware/auth.js'
 
 const router = Router()
 
-// GET /api/notifications - get current user's notifications
+// GET /api/notifications - get current user's notifications (paginated)
 router.get('/', requireAuth, async (req, res) => {
-  const { unread } = req.query
+  const { unread, page, limit } = req.query
+  const pageNum = Math.max(1, Number(page) || 1)
+  const limitNum = Math.min(50, Math.max(1, Number(limit) || 20))
   const notifications = await repo.findNotifications({
     userId: req.user.id,
     unreadOnly: unread === 'true',
+    page: pageNum,
+    limit: limitNum,
   })
-  res.json({ notifications })
+  const total = await repo.countNotifications({
+    userId: req.user.id,
+    unreadOnly: unread === 'true',
+  })
+  res.json({ notifications, total, page: pageNum, limit: limitNum })
 })
 
 // GET /api/notifications/count - get unread count
