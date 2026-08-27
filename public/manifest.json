@@ -8,6 +8,27 @@
   "background_color": "#ffffff",
   "theme_color": "#e63946",
   "scope": "/",
+  "id": "/",
+  "shortcuts": [
+    {
+      "name": "Browse Products",
+      "short_name": "Shop",
+      "url": "/shop",
+      "description": "Browse all products"
+    },
+    {
+      "name": "Flash Sales",
+      "short_name": "Deals",
+      "url": "/deals",
+      "description": "Today's flash sales and deals"
+    },
+    {
+      "name": "My Orders",
+      "short_name": "Orders",
+      "url": "/account",
+      "description": "Track your orders"
+    }
+  ],
   "icons": [
     {
       "src": "/icons/icon-72.png",
@@ -56,6 +77,22 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "NaijaMart Home Page"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "NaijaMart Mobile View"
     }
   ],
   "categories": ["shopping", "business"],

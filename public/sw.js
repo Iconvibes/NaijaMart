@@ -8,6 +8,7 @@ const API_CACHE = 'naijamart-api-v1'
 // Assets to pre-cache on install (the shell)
 const PRECACHE_URLS = [
   '/',
+  '/offline.html',
   '/manifest.json',
   '/favicon.svg',
   '/icons/icon-192.png',
@@ -115,7 +116,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(STATIC_CACHE).then((cache) => cache.put('/', clone))
           return response
         })
-        .catch(() => caches.match('/'))
+        .catch(() => caches.match('/').then((r) => r || caches.match('/offline.html')))
     )
     return
   }

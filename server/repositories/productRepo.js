@@ -134,7 +134,7 @@ const productRepo = {
         { $set: { stock: { $subtract: ['$stock', quantity] } } },
         { $set: { inStock: { $gt: [{ $subtract: ['$stock', quantity] }, 0] } } },
       ],
-      { new: true }
+      { returnDocument: 'after', updatePipeline: true }
     )
     return doc ? toProductObj({ ...doc.toObject(), id: doc._id }) : null
   },

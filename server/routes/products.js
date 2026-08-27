@@ -5,7 +5,7 @@ import { requireApprovedVendor } from '../middleware/vendorApproval.js'
 
 const router = Router()
 
-const PRODUCT_FIELDS = ['name', 'description', 'category', 'price', 'oldPrice', 'image', 'inStock', 'badge', 'rating', 'reviews', 'tags']
+const PRODUCT_FIELDS = ['name', 'description', 'category', 'price', 'oldPrice', 'image', 'inStock', 'stock', 'badge', 'rating', 'reviews', 'tags']
 
 const pick = (obj, keys) => {
   const out = {}

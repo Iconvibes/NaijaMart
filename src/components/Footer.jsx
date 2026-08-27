@@ -35,15 +35,6 @@ const columns = [
 ]
 
 export default function Footer() {
-  const handleInstall = () => {
-    // Trigger PWA install if available, otherwise scroll to top
-    if (window._deferredInstallPrompt) {
-      window._deferredInstallPrompt.prompt()
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
-  }
-
   return (
     <footer className="mt-8 bg-secondary text-white">
       {/* trust strip */}
@@ -92,21 +83,21 @@ export default function Footer() {
             Shop faster on the NaijaMart app — available on iOS and Android.
           </p>
           <div className="flex flex-col gap-2">
-            <button
-              onClick={handleInstall}
+            <Link
+              to="/app-soon"
               className="flex items-center justify-center gap-2 border border-white/60 rounded-md px-3 py-2 text-xs font-semibold hover:bg-white hover:text-secondary transition-colors"
             >
               <span className="text-lg leading-none">🍎</span> Download on the App Store
-            </button>
-            <button
-              onClick={handleInstall}
+            </Link>
+            <Link
+              to="/app-soon"
               className="flex items-center justify-center gap-2 border border-white/60 rounded-md px-3 py-2 text-xs font-semibold hover:bg-white hover:text-secondary transition-colors"
             >
               <span className="text-lg leading-none">▶</span> Get it on Google Play
-            </button>
+            </Link>
           </div>
           <p className="text-white/50 text-[11px] mt-3 leading-relaxed">
-            Tap to install as a Progressive Web App — no app store needed.
+            Or install as a Progressive Web App — no app store needed.
           </p>
         </div>
       </div>

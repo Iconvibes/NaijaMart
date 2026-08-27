@@ -35,6 +35,7 @@ import CareersPage from './pages/static/CareersPage'
 import SitemapPage from './pages/static/SitemapPage'
 import AdvertisePage from './pages/static/AdvertisePage'
 import AffiliatePage from './pages/static/AffiliatePage'
+import ComingSoonApp from './pages/ComingSoonApp'
 import VendorLayout from './pages/vendor/VendorLayout'
 import VendorProducts from './pages/vendor/VendorProducts'
 import VendorAddProduct from './pages/vendor/VendorAddProduct'
@@ -107,6 +108,7 @@ function AppRoutes() {
       <Route path="/sitemap" element={<SitemapPage />} />
       <Route path="/advertise" element={<AdvertisePage />} />
       <Route path="/affiliate" element={<AffiliatePage />} />
+      <Route path="/app-soon" element={<ComingSoonApp />} />
       <Route
         path="/vendor"
         element={

@@ -64,18 +64,33 @@ router.post('/', orderRateLimit, async (req, res) => {
   // to their account for reviews and email notifications.
   let customerId = null
   let customerEmail = req.body?.customerEmail || null
-  const header = req.headers.authorization || ''
-  if (header.startsWith('Bearer ')) {
+
+  // Resolve the logged-in user from JWT — either from Authorization header
+  // or from the HttpOnly cookie (browser clients).
+  async function resolveUser(token) {
     try {
       const jwt = await import('jsonwebtoken')
       const { JWT_SECRET } = await import('../middleware/auth.js')
-      const payload = jwt.default.verify(header.slice(7), JWT_SECRET)
-      const user = await repo.findUserById(payload.id)
-      if (user) {
-        customerId = user.id
-        if (!customerEmail) customerEmail = user.email
-      }
-    } catch { /* guest checkout — continue without customerId */ }
+      const payload = jwt.default.verify(token, JWT_SECRET)
+      return await repo.findUserById(payload.id)
+    } catch { return null }
+  }
+
+  let user = null
+  const header = req.headers.authorization || ''
+  if (header.startsWith('Bearer ')) {
+    user = await resolveUser(header.slice(7))
+  } else {
+    // Cookie auth: parse JWT from the token cookie
+    const { parseCookies } = await import('../middleware/csrf.js')
+    const cookies = parseCookies(req)
+    if (cookies.token) {
+      user = await resolveUser(cookies.token)
+    }
+  }
+  if (user) {
+    customerId = user.id
+    if (!customerEmail) customerEmail = user.email
   }
   // Merge server-detected fields into the body for placeOrder
   req.body.customerId = customerId
