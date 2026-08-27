@@ -10,10 +10,9 @@ import { notifyUser } from '../services/realtime.js'
 import { sendOrderConfirmation, sendShippingUpdate } from '../services/email.js'
 import { canSetFulfillment, FULFILLMENT, toVendorOrderView, WAREHOUSE_ADDRESS } from '../services/vendorOrderView.js'
 import { getPaymentProvider } from '../services/paymentProvider.js'
+import { canTransition, assertTransition, ORDER_STATUSES } from '../services/orderStateMachine.js'
 
 const router = Router()
-
-const STATUSES = ['pending', 'processing', 'shipped', 'delivered', 'cancelled']
 
 // GET /api/orders/lookup/:id - public order tracking. Verifies the phone
 // number matches so random browsing can't enumerate orders.
@@ -107,7 +106,7 @@ router.post('/', orderRateLimit, async (req, res) => {
 // sees every order in full for collation.
 router.get('/', requireAuth, async (req, res) => {
   const { status } = req.query
-  if (status && !STATUSES.includes(status)) {
+  if (status && !ORDER_STATUSES.includes(status)) {
     return res.status(400).json({ message: 'Unknown order status' })
   }
   if (req.user.role === 'admin') {
@@ -127,12 +126,19 @@ router.get('/', requireAuth, async (req, res) => {
 // is the admin's job; sellers move their own line items via /fulfillment.
 router.patch('/:id/status', requireAuth, requireRole('admin'), async (req, res) => {
   const { status } = req.body || {}
-  if (!STATUSES.includes(status)) {
-    return res.status(400).json({ message: `Status must be one of: ${STATUSES.join(', ')}` })
+  if (!ORDER_STATUSES.includes(status)) {
+    return res.status(400).json({ message: `Status must be one of: ${ORDER_STATUSES.join(', ')}` })
   }
 
   const order = await repo.findOrderById(req.params.id)
   if (!order) return res.status(404).json({ message: 'Order not found' })
+
+  // Enforce state machine: prevent invalid transitions
+  if (!canTransition(order.status, status)) {
+    return res.status(400).json({
+      message: `Cannot transition from '${order.status}' to '${status}'`,
+    })
+  }
 
   const updated = await repo.updateOrderStatus(req.params.id, status)
   // Notify customer of status change (fire-and-forget)

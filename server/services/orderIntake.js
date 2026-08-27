@@ -83,10 +83,26 @@ export async function placeOrder({ customerName, customerEmail, customerPhone, c
   }
 
   const lineItems = []
+  const stockReservations = [] // track decremented stock for rollback on failure
   for (const line of items) {
     const product = await repo.findProductById(line?.productId)
     if (!product) throw new ValidationError(`Product ${line.productId} no longer exists`)
     const qty = Math.max(1, Math.min(99, Number(line.qty) || 1))
+
+    // Atomic stock reservation: decrement stock if the product tracks numeric inventory.
+    // Products with stock=null use the boolean inStock only (unlimited).
+    if (product.stock != null) {
+      const updated = await repo.decrementStock(product.id, qty)
+      if (!updated) {
+        // Rollback any stock already reserved for earlier items in this order
+        for (const res of stockReservations) {
+          await repo.restoreStock(res.productId, res.qty)
+        }
+        throw new ValidationError(`"${product.name}" has insufficient stock (requested: ${qty}, available: ${product.stock ?? 0})`)
+      }
+      stockReservations.push({ productId: product.id, qty })
+    }
+
     lineItems.push({
       productId: product.id,
       vendorId: product.vendorId,

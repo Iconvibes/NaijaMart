@@ -61,6 +61,7 @@ const toProductObj = (p) => ({
   image: p.image,
   images: p.images || [],
   inStock: p.inStock,
+  stock: p.stock ?? null,
   badge: p.badge || null,
   rating: p.rating,
   reviews: p.reviews,
@@ -404,6 +405,51 @@ export const repo = {
     }
     const doc = await Product.findByIdAndDelete(id)
     return !!doc
+  },
+
+  // Atomically decrement stock for a product. Returns the updated product
+  // on success, null if stock is insufficient or product not found.
+  // This prevents overselling when multiple buyers purchase simultaneously.
+  async decrementStock(productId, quantity) {
+    if (isMemoryDb()) {
+      const p = mem.products.find((x) => String(x.id) === String(productId))
+      if (!p) return null
+      // null stock means unlimited (boolean inStock only)
+      if (p.stock == null) return toProductObj(p)
+      if (p.stock < quantity) return null
+      p.stock -= quantity
+      if (p.stock === 0) p.inStock = false
+      return toProductObj(p)
+    }
+    if (!mongoose.isValidObjectId(productId)) return null
+    // Atomic: only decrement if sufficient stock exists
+    const doc = await Product.findOneAndUpdate(
+      { _id: productId, stock: { $gte: quantity } },
+      [
+        { $set: { stock: { $subtract: ['$stock', quantity] } } },
+        { $set: { inStock: { $gt: [{ $subtract: ['$stock', quantity] }, 0] } } },
+      ],
+      { new: true }
+    )
+    return doc ? toProductObj({ ...doc.toObject(), id: doc._id }) : null
+  },
+
+  // Restore stock (used when an order is cancelled)
+  async restoreStock(productId, quantity) {
+    if (isMemoryDb()) {
+      const p = mem.products.find((x) => String(x.id) === String(productId))
+      if (!p) return
+      if (p.stock != null) {
+        p.stock += quantity
+        p.inStock = true
+      }
+      return
+    }
+    if (!mongoose.isValidObjectId(productId)) return
+    await Product.findByIdAndUpdate(productId, {
+      $inc: { stock: quantity },
+      $set: { inStock: true },
+    })
   },
 
   // ---- orders ----
