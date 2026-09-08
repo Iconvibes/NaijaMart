@@ -17,6 +17,8 @@ dist-ssr
 # Freebuff tooling (sessions, logs, temp scripts)
 .freebuff*
 .freebuff/
+AGENTS.md
+CONTEXT.md
 
 # Environment files (NEVER commit)
 .env
